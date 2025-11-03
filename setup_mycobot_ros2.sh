@@ -32,8 +32,8 @@ fi
 
 echo "=== [3/7] pymycobot 설치 ==="
 # 시스템 파이썬에 설치 (ROS2 런치와 동일 파이썬 사용 보장)
-sudo python3 -m pip install -U pip setuptools wheel
-sudo python3 -m pip install pymycobot
+sudo apt install -y python3-pip
+pip install pymycobot
 
 echo "=== [4/7] 워크스페이스 생성 ==="
 WS="$HOME/MyCobot_Project/mycobot_ros2"
