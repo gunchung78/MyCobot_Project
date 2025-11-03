@@ -36,7 +36,7 @@ sudo python3 -m pip install -U pip setuptools wheel
 sudo python3 -m pip install pymycobot
 
 echo "=== [4/7] 워크스페이스 생성 ==="
-WS=~MyCobot_Project/mycobot_ros2
+WS="$HOME/MyCobot_Project/mycobot_ros2"
 mkdir -p "$WS/src"
 
 echo "=== [5/7] 소스 클론 ==="
@@ -54,12 +54,13 @@ colcon build --symlink-install
 
 echo "=== [7/7] 환경 설정 ==="
 # 현재 세션
+# shellcheck disable=SC1090
 source "$WS/install/setup.bash"
 
-# 선택적으로 bashrc에 추가 (원문에 '선택'으로 표기)
-BASHRC_LINE="source ~/mycobot_ros2/install/setup.bash"
-if ! grep -Fxq "$BASHRC_LINE" ~/.bashrc; then
-  echo "$BASHRC_LINE" >> ~/.bashrc
+# 선택적으로 bashrc에 추가
+BASHRC_LINE="source \$HOME/MyCobot_Project/mycobot_ros2/install/setup.bash"
+if ! grep -Fxq "$BASHRC_LINE" "$HOME/.bashrc"; then
+  echo "$BASHRC_LINE" >> "$HOME/.bashrc"
   echo "bashrc에 워크스페이스 설정을 추가했습니다. (새 터미널에서 자동 적용)"
 else
   echo "bashrc에 이미 워크스페이스 설정이 존재합니다."
@@ -68,7 +69,7 @@ fi
 echo
 echo "✅ 완료!"
 echo "다음 명령으로 환경 확인:"
-echo "  source ~/mycobot_ros2/install/setup.bash"
+echo "  source \$HOME/MyCobot_Project/mycobot_ros2/install/setup.bash"
 echo "  ros2 pkg list | grep mycobot"
 echo
 echo "실기 테스트 전 권장:"
