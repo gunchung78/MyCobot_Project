@@ -1,103 +1,83 @@
-# MyCobot_Project
+#!/usr/bin/env bash
+# setup_mycobot_ros2.sh
+# Ubuntu 22.04 + ROS2 Humble 에서 mycobot_ros2(320 포함) 최소 실행 환경 자동 세팅
+# 옵션: --with-moveit  -> ros-humble-moveit 설치
 
-# mycobot_ros2 (Humble, Ubuntu 22.04, VirtualBox) — 빠른 실행 가이드
+set -euo pipefail
 
-myCobot 320을 **ROS 2 Humble** 환경에서 빠르게 구동하기 위한 자동 설정 스크립트와 실행 방법입니다.
+WITH_MOVEIT="false"
+for arg in "$@"; do
+  case "$arg" in
+    --with-moveit) WITH_MOVEIT="true" ;;
+    *) echo "Unknown option: $arg"; exit 1 ;;
+  esac
+done
 
----
+echo "=== [1/7] 시스템 패키지 업데이트 ==="
+sudo apt update
 
-## 1) 설치 스크립트 실행
+echo "=== [2/7] 필수 패키지 설치 ==="
+sudo apt install -y \
+  python3-argcomplete \
+  ros-humble-xacro \
+  python3-colcon-common-extensions \
+  ros-humble-joint-state-publisher-gui
 
-### 1-1) 실행 권한
+if [ "$WITH_MOVEIT" = "true" ]; then
+  echo "=== (옵션) MoveIt 설치 ==="
+  sudo apt install -y ros-humble-moveit
+else
+  echo "=== MoveIt 설치 건너뜀 (원하면 --with-moveit 옵션으로 설치) ==="
+fi
 
-```bash
-chmod +x setup_mycobot_ros2.sh
-```
+echo "=== [3/7] pymycobot 설치 ==="
+# 시스템 파이썬에 설치 (ROS2 런치와 동일 파이썬 사용 보장)
+sudo python3 -m pip install -U pip setuptools wheel
+sudo python3 -m pip install pymycobot
 
-### 1-2) 기본 설치
+echo "=== [4/7] 워크스페이스 생성 ==="
+WS="$HOME/MyCobot_Project/mycobot_ros2"
+mkdir -p "$WS/src"
 
-```bash
-./setup_mycobot_ros2.sh
-```
+echo "=== [5/7] 소스 클론 ==="
+cd "$WS/src"
+if [ ! -d "mycobot_ros2" ]; then
+  git clone --depth 1 https://github.com/elephantrobotics/mycobot_ros2.git
+else
+  echo "이미 mycobot_ros2가 존재합니다. 업데이트를 원하면 수동으로 git pull 하세요."
+fi
 
-### 1-3) MoveIt까지 함께 설치(선택)
+echo "=== [6/7] 빌드 ==="
+cd "$WS"
+# python 스크립트 수정 시 재빌드 피하려면 --symlink-install 유지
+colcon build --symlink-install
 
-```bash
-./setup_mycobot_ros2.sh --with-moveit
-```
+echo "=== [7/7] 환경 설정 ==="
+# 현재 세션
+# shellcheck disable=SC1090
+source "$WS/install/setup.bash"
 
-> 스크립트 실행이 끝나면 새로운 터미널을 열거나 아래를 실행하세요:
+# 선택적으로 bashrc에 추가
+BASHRC_LINE="source \$HOME/MyCobot_Project/mycobot_ros2/install/setup.bash"
+if ! grep -Fxq "$BASHRC_LINE" "$HOME/.bashrc"; then
+  echo "$BASHRC_LINE" >> "$HOME/.bashrc"
+  echo "bashrc에 워크스페이스 설정을 추가했습니다. (새 터미널에서 자동 적용)"
+else
+  echo "bashrc에 이미 워크스페이스 설정이 존재합니다."
+fi
 
-```bash
-source ~/mycobot_ros2/install/setup.bash
-```
-
----
-
-## 2) VirtualBox에서 myCobot 320 포트 연결
-
-1. **VirtualBox Extension Pack** 설치(호스트에).
-2. VM 전원 **끄기** → **설정 → USB**에서 **USB 3.0(xHCI)** 활성화.
-3. **USB 필터 추가**로 myCobot 장치 선택(호스트 장치 관리자/디바이스 목록에서 모델 확인).
-4. VM **부팅 후** myCobot를 다시 연결(또는 메뉴 **Devices → USB → 장치 체크**).
-
-장치가 게스트(Ubuntu)로 제대로 패스스루되면 아래처럼 포트가 보입니다.
-
-```bash
-ls -a /dev/tty* | grep ACM0
-```
-
-**예상 출력**
-
-```
-/dev/ttyACM0
-```
-
-> 포트 이름은 환경에 따라 `/dev/ttyUSB0`로 보일 수도 있습니다.
-
----
-
-## 3) (선택) 포트 권한 & 동작 확인
-
-시리얼 접근 권한이 없으면 아래를 한 번만 설정하세요.
-
-```bash
-sudo usermod -a -G dialout $USER
-newgrp dialout
-```
-
-간단 확인:
-
-```bash
-ls -l /dev/ttyACM0
-```
-
----
-
-## 4) 간단 실행 예시
-
-GUI로 실기 제어(포트/보레이트는 장치에 맞게 조정):
-
-```bash
-ros2 run mycobot_320 simple_gui --ros-args -p port:=/dev/ttyACM0 -p baud:=115200
-```
-
-RViz에서 모델만 확인(옵션):
-
-```bash
-ros2 run joint_state_publisher_gui joint_state_publisher_gui &
-ros2 run robot_state_publisher robot_state_publisher \
-  --ros-args -p robot_description:="$(xacro $(ros2 pkg prefix mycobot_320)/share/mycobot_320/urdf/mycobot_320.urdf.xacro)"
-```
-
----
-
-## 5) 트러블슈팅(짧게)
-
-* **GUI/노드가 포트를 못 찾음** → VirtualBox USB 3.0 + USB 필터, `/dev/ttyACM0` 존재 확인
-* **권한 오류** → `dialout` 그룹 추가 후 다시 연결
-* **GUI가 반응 없음** → GUI 실행 시 `port`, `baud` 파라미터 지정, 속도(speed) 0 아닌지 확인
-
----
-
-필요하면 README 최상단에 프로젝트 소개/라이선스/스크린샷 섹션만 추가하면 바로 공개 가능합니다.
+echo
+echo "✅ 완료!"
+echo "다음 명령으로 환경 확인:"
+echo "  source \$HOME/MyCobot_Project/mycobot_ros2/install/setup.bash"
+echo "  ros2 pkg list | grep mycobot"
+echo
+echo "실기 테스트 전 권장:"
+echo "  - USB 패스스루(가상머신): 장치가 /dev/ttyACM0 또는 /dev/ttyUSB0로 보여야 함"
+echo "  - dialout 권한: sudo usermod -a -G dialout \$USER && newgrp dialout"
+echo
+echo "간단 실행 예시(포트/보레이트는 장치에 맞게):"
+echo "  ros2 run mycobot_320 simple_gui --ros-args -p port:=/dev/ttyACM0 -p baud:=115200"
+echo "  # RViz로 모델만 보고 싶으면:"
+echo "  ros2 run joint_state_publisher_gui joint_state_publisher_gui &"
+echo "  ros2 run robot_state_publisher robot_state_publisher --ros-args -p robot_description:=\"\$(xacro \$(ros2 pkg prefix mycobot_320)/share/mycobot_320/urdf/mycobot_320.urdf.xacro)\""

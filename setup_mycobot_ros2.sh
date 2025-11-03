@@ -36,7 +36,7 @@ sudo python3 -m pip install -U pip setuptools wheel
 sudo python3 -m pip install pymycobot
 
 echo "=== [4/7] 워크스페이스 생성 ==="
-WS=~/mycobot_ros2
+WS=~MyCobot_Project/mycobot_ros2
 mkdir -p "$WS/src"
 
 echo "=== [5/7] 소스 클론 ==="
