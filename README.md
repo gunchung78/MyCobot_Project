@@ -1,83 +1,78 @@
-#!/usr/bin/env bash
-# setup_mycobot_ros2.sh
-# Ubuntu 22.04 + ROS2 Humble 에서 mycobot_ros2(320 포함) 최소 실행 환경 자동 세팅
-# 옵션: --with-moveit  -> ros-humble-moveit 설치
+## 환경
 
-set -euo pipefail
+* os : ubuntu 22.04
+* ros version : ros2 humble
+* python version : 3.10
 
-WITH_MOVEIT="false"
-for arg in "$@"; do
-  case "$arg" in
-    --with-moveit) WITH_MOVEIT="true" ;;
-    *) echo "Unknown option: $arg"; exit 1 ;;
-  esac
-done
+---
 
-echo "=== [1/7] 시스템 패키지 업데이트 ==="
-sudo apt update
+## 핵심 정리
 
-echo "=== [2/7] 필수 패키지 설치 ==="
-sudo apt install -y \
-  python3-argcomplete \
-  ros-humble-xacro \
-  python3-colcon-common-extensions \
-  ros-humble-joint-state-publisher-gui
+* **설치:** `chmod +x setup_mycobot_ros2.sh && ./setup_mycobot_ros2.sh`
+* **VirtualBox 설정:** (게스트 전원 종료) → **USB 3.0** 선택 → **USB 필터**로 myCobot 장치 추가
+* **장치 확인(게스트 내부):** `ls /dev/tty* | grep AMA0` (환경에 따라 `ACM0`/`USB0`일 수 있음)
+* **실행 예시:**
 
-if [ "$WITH_MOVEIT" = "true" ]; then
-  echo "=== (옵션) MoveIt 설치 ==="
-  sudo apt install -y ros-humble-moveit
-else
-  echo "=== MoveIt 설치 건너뜀 (원하면 --with-moveit 옵션으로 설치) ==="
-fi
+  ```bash
+  ros2 launch mycobot_320 simple_gui.launch.py
+  ```
 
-echo "=== [3/7] pymycobot 설치 ==="
-# 시스템 파이썬에 설치 (ROS2 런치와 동일 파이썬 사용 보장)
-sudo python3 -m pip install -U pip setuptools wheel
-sudo python3 -m pip install pymycobot
+---
 
-echo "=== [4/7] 워크스페이스 생성 ==="
-WS="$HOME/MyCobot_Project/mycobot_ros2"
-mkdir -p "$WS/src"
+## 1) 설치 스크립트 실행
 
-echo "=== [5/7] 소스 클론 ==="
-cd "$WS/src"
-if [ ! -d "mycobot_ros2" ]; then
-  git clone --depth 1 https://github.com/elephantrobotics/mycobot_ros2.git
-else
-  echo "이미 mycobot_ros2가 존재합니다. 업데이트를 원하면 수동으로 git pull 하세요."
-fi
+1. 파일 저장(예: 홈 폴더):
 
-echo "=== [6/7] 빌드 ==="
-cd "$WS"
-# python 스크립트 수정 시 재빌드 피하려면 --symlink-install 유지
-colcon build --symlink-install
+   ```bash
+   nano ~/setup_mycobot_ros2.sh   # 내용 붙여넣기 후 저장
+   chmod +x ~/setup_mycobot_ros2.sh
+   ```
+2. 실행:
 
-echo "=== [7/7] 환경 설정 ==="
-# 현재 세션
-# shellcheck disable=SC1090
-source "$WS/install/setup.bash"
+   ```bash
+   ./setup_mycobot_ros2.sh
+   ```
+3. 완료 후 안내에 따라 새 터미널에서:
 
-# 선택적으로 bashrc에 추가
-BASHRC_LINE="source \$HOME/MyCobot_Project/mycobot_ros2/install/setup.bash"
-if ! grep -Fxq "$BASHRC_LINE" "$HOME/.bashrc"; then
-  echo "$BASHRC_LINE" >> "$HOME/.bashrc"
-  echo "bashrc에 워크스페이스 설정을 추가했습니다. (새 터미널에서 자동 적용)"
-else
-  echo "bashrc에 이미 워크스페이스 설정이 존재합니다."
-fi
+   ```bash
+   source /opt/ros/humble/setup.bash
+   source ~/MyCobot_Project/mycobot_ros2/install/setup.bash
+   ```
 
-echo
-echo "✅ 완료!"
-echo "다음 명령으로 환경 확인:"
-echo "  source \$HOME/MyCobot_Project/mycobot_ros2/install/setup.bash"
-echo "  ros2 pkg list | grep mycobot"
-echo
-echo "실기 테스트 전 권장:"
-echo "  - USB 패스스루(가상머신): 장치가 /dev/ttyACM0 또는 /dev/ttyUSB0로 보여야 함"
-echo "  - dialout 권한: sudo usermod -a -G dialout \$USER && newgrp dialout"
-echo
-echo "간단 실행 예시(포트/보레이트는 장치에 맞게):"
-echo "  ros2 run mycobot_320 simple_gui --ros-args -p port:=/dev/ttyACM0 -p baud:=115200"
-echo "  # RViz로 모델만 보고 싶으면:"
-echo "  ros2 run joint_state_publisher_gui joint_state_publisher_gui &"
-echo "  ros2 run robot_state_publisher robot_state_publisher --ros-args -p robot_description:=\"\$(xacro \$(ros2 pkg prefix mycobot_320)/share/mycobot_320/urdf/mycobot_320.urdf.xacro)\""
+---
+
+## 2) VirtualBox에서 myCobot USB 연결 설정
+
+> **중요:** 이 절차는 **게스트(가상 머신) 전원을 완전히 끈 상태**에서 진행합니다.
+
+1. **VirtualBox Extension Pack 설치(호스트)**
+   USB 3.0 지원을 위해 권장됩니다. (VirtualBox 메뉴의 *Preferences → Extensions*에서 확인)
+
+2. **게스트 설정 열기 → USB**
+
+   * **USB Controller 활성화:** **USB 3.0 (xHCI) Controller** 선택
+   * **장치 필터 추가( + 아이콘 )**: myCobot 연결한 상태에서 **“Mycobot…”** 같은 장치를 선택해 필터 추가
+
+     * 장치명/벤더ID/제품ID가 자동으로 채워져, 게스트가 해당 USB를 직접 잡도록 해줍니다.
+---
+
+## 3) 게스트(우분투)에서 포트 확인 & 권한
+
+**시리얼 장치 노출 확인**
+   사용 환경에 따라 myCobot은 아래 중 하나로 보일 수 있습니다.
+
+   * `/dev/ttyAMA0` (요청하신 확인 명령)
+   * `/dev/ttyACM0`
+   * `/dev/ttyUSB0`
+
+   ```bash
+   ls /dev/tty* | grep AMA0
+   ```
+---
+
+## 4) 실행 예시
+
+ros2 launch mycobot_320 simple_gui.launch.py
+---
+
+
