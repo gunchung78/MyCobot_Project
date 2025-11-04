@@ -10,21 +10,19 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/launch', ['launch/box_detector.launch.py']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='geon',
     maintainer_email='gunchung78@gmail.com',
-    description='TODO: Package description',
-    license='TODO: License declaration',
-    extras_require={
-        'test': [
-            'pytest',
-        ],
-    },
+    description='myCobot vision: publish (u,v,roll) from camera',
+    license='Apache-2.0',
+    extras_require={'test': ['pytest']},
     entry_points={
         'console_scripts': [
-            'box_detector = box_detector_node.py.box_detector_node:main',
+            # ⬇️ 여기!  mycobot_320_vision.box_detector_node:main  로 써야 함
+            'box_detector = mycobot_320_vision.box_detector_node:main',
         ],
     },
 )
