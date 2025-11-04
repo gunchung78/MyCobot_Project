@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'box_detector = box_detector_node.py.box_detector_node:main',
         ],
     },
 )
