@@ -74,7 +74,7 @@ class PickTargetDetector:
 
         # 중앙과 제일 가까운 후보 1개 선택
         selected = None  # dict: {color,cnt,box,center,angle_img,area,dist2,midL,midR}
-        for color_name, ranges in C.COLOR_RANGES.items():
+        for color_name, ranges in C.COLOR_RANGES.__dict__.items():
             color_mask = np.zeros((H, W), dtype=np.uint8)
             for (lo, hi) in ranges:
                 color_mask |= cv2.inRange(hsv, lo, hi)
@@ -151,7 +151,7 @@ class PickTargetDetector:
 
         # --- 시각화 ---
         color_name = selected["color"]
-        draw_col = C.COLOR_BRG_DRAW.get(color_name, (255, 255, 255))
+        draw_col = getattr(C.COLOR_BRG_DRAW, color_name, (255, 255, 255))
         cv2.drawContours(overlay, [selected["box"]], 0, draw_col, 2)
         cv2.circle(overlay, tuple(selected["midL"]), 6, draw_col, -1)
         cv2.circle(overlay, tuple(selected["midR"]), 6, draw_col, -1)

@@ -2,13 +2,16 @@
 # -*- coding: utf-8 -*-
 
 import cv2
-import config as C
+from src.config_loader import load_config 
 import src.utility as util
 from src.detector import PickTargetDetector
 from src.robot import Robot
 
 def main():
-    # ---- 카메라 준비 ----D
+    # ---- 설정 로드 ----
+    C = load_config("config.json")
+
+    # ---- 카메라 준비 ----
     cam = cv2.VideoCapture(C.CAM_INDEX)
     if not cam.isOpened():
         raise SystemExit("카메라를 열 수 없습니다.")
@@ -23,7 +26,7 @@ def main():
     detector.set_frame_size(W, H)
 
     # ---- 로봇 준비(루프 외부에서 1회만) ----
-    r = Robot(C.PORT, C.BAUD, C.MOVE_SPEED, C.GRIPPER_OPEN_VAL, C.GRIPPER_CLOSE_VAL, C.GRIPPER_SPEED)
+    r = Robot(C.PORT, C.BAUD, C.MOVE_SPEED, C.GRIPPER_OPEN_VAL, C.GRIPPER_CLOSE_VAL, C.GRIPPER_SPEED, C.ANCHOR_PY)
     r.power_on()
     r.gripper_open()
 

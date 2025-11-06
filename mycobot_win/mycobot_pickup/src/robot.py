@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 import time
 from pymycobot.mycobot320 import MyCobot320
-import config as C
 
 class Robot:
     def __init__(self, port, baud, move_speed,
-                 gripper_open_val, gripper_close_val, gripper_speed):
+                 gripper_open_val, gripper_close_val, gripper_speed, ANCHOR_PY):
         self.mc = MyCobot320(port, baud)
         self.move_speed = move_speed
         self.gr_open = gripper_open_val
         self.gr_close = gripper_close_val
         self.gr_speed = gripper_speed
+        self.ANCHOR_PY = ANCHOR_PY
 
     # ── 전원/기본 이동 ─────────────────────────────
     def power_on(self):
@@ -20,7 +20,7 @@ class Robot:
             self.mc.set_gripper_mode(0)
             self.mc.init_electric_gripper()
             self.mc.set_electric_gripper(0)
-            self.mc.sync_send_coords(C.ANCHOR_PY, 20)
+            self.mc.sync_send_coords(self.ANCHOR_PY, self.move_speed)
             time.sleep(1)
         except Exception as e:
             print(f"[WARN] power_on 실패: {e}")
