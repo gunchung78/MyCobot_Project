@@ -71,11 +71,15 @@
 
 1. **Modbus 통신을 위한 pymodbus 설치**
    
-   * pip install pymodbus
+   ```bash
+   pip install pymodbus==2.5.3
+   ```
 
 2. **OPC UA 통신을 위한 asyncua 설치**
    
-   * pip install asyncua
+   ```bash
+   pip install asyncua==1.1.8
+   ```
 
 ---
 
