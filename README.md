@@ -70,10 +70,14 @@
 ## 4) PLC 통신 관련 패키지 설치
 
 1. **Modbus 통신을 위한 pymodbus 설치**
-   pip install pymodbus
+   
+   * pip install pymodbus
 
 2. **OPC UA 통신을 위한 asyncua 설치**
-   pip install asyncua
+   
+   * pip install asyncua
+
+---
 
 ## 5) 실행 예시
 
