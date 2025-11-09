@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 import os
 from glob import glob
 
-package_name = 'mycobot_opcua_control'
+package_name = 'mycobot_320_opcua'
 
 setup(
     name=package_name,
@@ -20,7 +20,7 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='leewonyoung', # package.xml의 maintainer와 일치시키세요.
+    maintainer='leewonyoung', # packsourage.xml의 maintainer와 일치시키세요.
     maintainer_email='leewonyoung@todo.todo', # package.xml의 email과 일치시키세요.
     description='MyCobot control via OPC UA PLC trigger', # 적절한 설명
     license='TODO: License declaration', # package.xml의 라이선스와 일치시키세요.
@@ -30,9 +30,9 @@ setup(
     entry_points={
         'console_scripts': [
             # '실행할 명령어 = 모듈 이름.파일 이름(확장자 제외):함수 이름' 
-            'OPCUA_Server = mycobot_opcua_control.OPCUA_Server:main',
-            'M0001 = mycobot_opcua_control.M0001:main',
-            'M0010 = mycobot_opcua_control.M0010:main'
+            'opcua_server = mycobot_320_opcua.opcua_server:main',
+            'm0010_listener = mycobot_320_opcua.m0010_listener:main',
+            'm0020_listener = mycobot_320_opcua.m0020_listener:main',
         ],
     },
 )
