@@ -168,8 +168,8 @@ class PickTargetDetector:
         dx_mm = dx_pix * C.SCALE_X_MM_PER_PX
         dy_mm = dy_pix * C.SCALE_Y_MM_PER_PX
 
-        x_t = C.ANCHOR_PY[0] - dx_mm
-        y_t = C.ANCHOR_PY[1] + dy_mm + C.CAMERA_MM
+        x_t = C.ANCHOR_PY[0] - dx_mm + C.CAMERAX_MM
+        y_t = C.ANCHOR_PY[1] + dy_mm + C.CAMERAY_MM
 
         angle_img_raw = float(selected["angle_img"])
         if angle_img_raw is not None:

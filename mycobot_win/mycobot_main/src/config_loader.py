@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 import json
 import numpy as np
+import os
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List
 
@@ -45,8 +47,44 @@ def _postprocess(cfg: Dict[str, Any]) -> Dict[str, Any]:
     return cfg
 
 def load_config(path: str = "config.json"):
-    with open(path, "r", encoding="utf-8") as f:
-        raw = json.load(f)
-    fixed = _postprocess(raw)
-    # dict -> SimpleNamespace (점 표기 지원)
-    return _to_namespace(fixed)
+    """
+    config.json 탐색 우선순위:
+      1) 환경변수 MYCOBOT_CONFIG
+      2) 인자로 받은 경로(절대경로 또는 CWD 기준 상대경로)
+      3) 이 파일 기준: ../config.json  (즉 mycobot_main/config.json)
+      4) CWD/config.json
+    """
+    tried = []
+    candidates: list[Path] = []
+
+    # 1) ENV
+    env_path = os.getenv("MYCOBOT_CONFIG")
+    if env_path:
+        candidates.append(Path(env_path))
+
+    # 2) ARG
+    if path:
+        p = Path(path)
+        candidates.append(p)
+        if not p.is_absolute():
+            candidates.append(Path.cwd() / p)
+
+    # 3) MODULE DIR BASED (가장 중요한 고정 경로)
+    here = Path(__file__).resolve()              # .../mycobot_main/src/config_loader.py
+    root = here.parent.parent                    # .../mycobot_main
+    candidates.append(root / "config.json")      # 루트에 있는 config.json
+
+    # 4) CWD
+    candidates.append(Path.cwd() / "config.json")
+
+    for c in candidates:
+        tried.append(str(c))
+        if c.exists():
+            with c.open("r", encoding="utf-8") as f:
+                raw = json.load(f)
+            return _to_namespace(_postprocess(raw))
+
+    raise FileNotFoundError(
+        "config.json not found.\nTried:\n  - " + "\n  - ".join(tried) +
+        f"\nCWD: {Path.cwd()}"
+    )

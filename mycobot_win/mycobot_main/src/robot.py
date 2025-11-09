@@ -25,6 +25,26 @@ class Robot:
         self.gr_speed = int(gripper_speed)
         self.ANCHOR_PY = list(ANCHOR_PY)
 
+    def move_and_wait(self, mode: str, value: Sequence[float], speed: Optional[int]=None,
+                    delay: float=0.5, poll_sec: float=0.1):
+        """
+        비동기 명령 후 is_moving()으로 정지까지 대기.
+        - mode = 'coords' : send_coords(value, speed, mode=0)
+        - mode = 'angles' : send_angles(value, speed)
+        """
+        try:
+            spd = speed or self.move_speed
+            if mode == "coords":
+                self.mc.send_coords(list(value), spd, 0)
+            elif mode == "angles":
+                self.mc.send_angles(list(value), spd)
+            else:
+                raise ValueError("mode must be 'coords' or 'angles'")
+            self.wait_until_stop(poll_sec=poll_sec, extra_delay=delay)
+        except Exception as e:
+            print(f"[WARN] move_and_wait 실패: {e}")
+
+
     # ── 전원/기본 이동 ─────────────────────────────
     def power_on(self, go_anchor: bool=True):
         try:
@@ -40,7 +60,8 @@ class Robot:
             except Exception: pass
 
             if go_anchor:
-                self.mc.sync_send_coords(self.ANCHOR_PY, self.move_speed, 0)
+                # self.mc.sync_send_coords(self.ANCHOR_PY, self.move_speed, 0)
+                self.move_and_wait("angles", [0, 0, -80, -0, 90, -90])
                 time.sleep(0.5)
         except Exception as e:
             print(f"[WARN] power_on 실패: {e}")
@@ -96,24 +117,6 @@ class Robot:
         except Exception as e:
             print(f"[WARN] sync_send_angles 실패: {e}")
 
-    def move_and_wait(self, mode: str, value: Sequence[float], speed: Optional[int]=None,
-                      delay: float=0.5, poll_sec: float=0.1):
-        """
-        비동기 명령 후 is_moving()으로 정지까지 대기.
-        - mode = 'coords' : send_coords(value, speed, mode=0)
-        - mode = 'angles' : send_angles(value, speed)
-        """
-        try:
-            spd = speed or self.move_speed
-            if mode == "coords":
-                self.mc.send_coords(list(value), spd, 0)
-            elif mode == "angles":
-                self.mc.send_angles(list(value), spd)
-            else:
-                raise ValueError("mode must be 'coords' or 'angles'")
-            self.wait_until_stop(poll_sec=poll_sec, extra_delay=delay)
-        except Exception as e:
-            print(f"[WARN] move_and_wait 실패: {e}")
 
     # ── 그리퍼 호환 래퍼 ──────────────────────────
     def gripper_open(self):
@@ -180,19 +183,4 @@ class Robot:
         """앵커 좌표로 복귀"""
         self.move_coords(self.ANCHOR_PY, self.move_speed, 0, sleep=sleep)
 
-    def pick_and_drop_demo(self, pick_xy_rz: List[float], color: str, idx: int=0):
-        """
-        데모: (x,y,rz) 접근 → 집기 → 색상별 위치에 내려놓기 → 앵커 복귀
-        pick_xy_rz: [x, y, rz_deg], Z는 앵커의 z 사용
-        """
-        try:
-            x, y, rz = pick_xy_rz
-            coords_approach = [x, y, self.ANCHOR_PY[2], self.ANCHOR_PY[3], self.ANCHOR_PY[4], rz]
-            self.move_coords(coords_approach, self.move_speed, 0, sleep=0.2)
-            self.gripper_close()
-            time.sleep(0.3)
-            self.go_anchor()
-            self.place_box(color, idx=idx)
-            self.go_anchor()
-        except Exception as e:
-            print(f"[ERROR] pick_and_drop_demo 실패: {e}")
+   
