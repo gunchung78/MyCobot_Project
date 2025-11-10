@@ -135,7 +135,7 @@ def main():
 
                 except Exception as e:
                     print(f"[ERROR] 로봇 명령 실패: {e}")
-                    
+
             key = cv2.waitKey(3) & 0xFF
             if key == 27:  # ESC
                 break
