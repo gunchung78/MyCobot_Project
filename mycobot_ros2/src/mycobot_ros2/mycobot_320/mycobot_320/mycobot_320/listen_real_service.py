@@ -7,7 +7,7 @@ import traceback
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Header
-
+from rclpy.executors import MultiThreadedExecutor
 from mycobot_interfaces.srv import SetAngles, SetCoords, GetCoords, GripperStatus, GetAngles, PumpStatus
 import pymycobot
 from packaging import version
@@ -42,17 +42,12 @@ def acquire(lock_file):
     except OSError as erro_info:
         print(f"Failed to open lock file {lock_file}: {erro_info}")
         return None
-    timeout = 50.0
-    start_time = current_time = time.time()
-    while current_time < start_time + timeout:
-        try:
-            fcntl.flock(file_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            return file_descriptor
-        except:
-            time.sleep(1)
-            current_time = time.time()
-    os.close(file_descriptor)
-    return None
+    try:
+        fcntl.flock(file_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return file_descriptor
+    except:
+        os.close(file_descriptor)
+        return None
 
 
 def release(fd):
@@ -87,6 +82,9 @@ class MyCobotDriver(Node):
         if self.mc.get_fresh_mode() != 1:
             self.mc.set_fresh_mode(1)
 
+        # 🟩 추가: 마지막 유효 관절각 캐싱용 변수
+        self._last_valid_angles = None
+
         self.pub = self.create_publisher(JointState, 'joint_states', 10)
         self.timer = self.create_timer(0.02, self.publish_joint_states)
 
@@ -103,10 +101,22 @@ class MyCobotDriver(Node):
         """Publish current joint states to the `joint_states` topic."""
         try:
             lock = acquire('/tmp/mycobot_lock')
+            if lock is None:
+                # 🟩 추가: 락 점유 중이면 skip (대기하지 않음)
+                self.get_logger().warn("publish_joint_states: lock busy, skip once")
+                return
+
             angles = self.mc.get_angles()
             release(lock)
-            if not angles or not isinstance(angles, list) or angles[0:3] == [0.0, 0.0, 0.0] or len(angles) != 6:
-                return
+
+            # 🟩 수정: 기존 0.0,0.0,0.0 필터링 완화 + 캐시 로직 추가
+            if not isinstance(angles, list) or len(angles) != 6:
+                if self._last_valid_angles is None:
+                    return
+                angles = self._last_valid_angles
+            else:
+                self._last_valid_angles = angles[:]
+
             js = JointState()
             js.header = Header()
             js.header.stamp = self.get_clock().now().to_msg()
@@ -137,25 +147,27 @@ class MyCobotDriver(Node):
             SetAngles.Response: The response with a boolean `flag` indicating
             whether the operation succeeded.
         """
-        try:
-            lock = acquire('/tmp/mycobot_lock')
-            angles = [
-                request.joint_1,
-                request.joint_2,
-                request.joint_3,
-                request.joint_4,
-                request.joint_5,
-                request.joint_6,
-            ]
-            speed = request.speed
-            self.mc.send_angles(angles, speed)
-            release(lock)
-            response.flag = True
-        except Exception as e:
-            e = traceback.format_exc()
-            release(lock)
-            self.get_logger().error(f"SetJointAngles service error: {e}")
+        lock = acquire('/tmp/mycobot_lock')
+        if lock is None:
+            self.get_logger().warn("set_angles: lock busy, skip")
             response.flag = False
+            return response
+        try:
+            angles = [
+                request.joint_1, request.joint_2, request.joint_3,
+                request.joint_4, request.joint_5, request.joint_6,
+            ]
+            self.mc.send_angles(angles, request.speed)
+            time.sleep(0.05)
+            cur = self.mc.get_angles()
+            if cur and len(cur) == 6:
+                self._last_valid_angles = cur[:]  # 🟩 즉시 캐시 갱신
+            response.flag = True
+        except Exception:
+            self.get_logger().error("SetJointAngles service error:\n" + traceback.format_exc())
+            response.flag = False
+        finally:
+            release(lock)
         return response
 
     def set_coords_callback(self, request, response):
@@ -221,18 +233,21 @@ class MyCobotDriver(Node):
         Returns:
             GetAngles.Response: The response containing six joint angles.
         """
+        lock = acquire('/tmp/mycobot_lock')
+        if lock is None:
+            self.get_logger().warn("get_angles: lock busy, skip")
+            return response
         try:
-            lock = acquire('/tmp/mycobot_lock')
             angles = self.mc.get_angles()
-            release(lock)
-            if angles and all(a != -1 for a in angles) and len(angles) == 6:
+            if angles and len(angles) == 6 and all(a != -1 for a in angles):
                 (response.joint_1, response.joint_2, response.joint_3,
                  response.joint_4, response.joint_5, response.joint_6) = angles
             else:
-                self.get_logger().error("Failed to get angles.")
-        except Exception as e:
-            e = traceback.format_exc()
-            self.get_logger().error(f"GetAngles service error: {e}")
+                self.get_logger().warn("Invalid get_angles response (None or wrong length).")
+        except Exception:
+            self.get_logger().error("GetAngles service error:\n" + traceback.format_exc())
+        finally:
+            release(lock)
         return response
 
     def set_gripper_callback(self, request, response):
@@ -325,6 +340,12 @@ def main(args=None):
     """Main entry point for running the MyCobotDriver node."""
     rclpy.init(args=args)
     node = MyCobotDriver()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    try:
+        execu = MultiThreadedExecutor(num_threads=2)  # 🔧
+        execu.add_node(node)
+        execu.spin()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
