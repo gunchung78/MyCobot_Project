@@ -2,6 +2,8 @@
     "PORT": "/dev/ttyACM0",
     "BAUD": 115200,
     "CAM_INDEX": 0,
+    "MODEL_PATH_DIR": "../data/best.pt",
+    "YAML_PATH_DIR": "../data/custom_data.yaml",
     "PICK_ZONE_REL_W": 0.40,
     "PICK_ZONE_REL_H": 0.50,
     "PICK_CX": 320,

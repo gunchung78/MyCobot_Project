@@ -8,33 +8,34 @@ from src.config_loader import load_config
 import src.utility as util
 from src.detector import PickTargetDetector
 from src.robot import Robot
-
-# YOLO 설정
-# MODEL_PATH = 'C:/Dev/KAIROS_Project_2/AI_Cordinate/YOLO/runs/detect/train/weights/best.pt'
-MODEL_PATH = '/home/jy/MyCobot_Project/mycobot_win/mycobot_vision/best.pt'
-# YAML_PATH = 'C:/Dev/KAIROS_Project_2/AI_Cordinate/YOLO/team/custom_data.yaml'
-YAML_PATH = '/home/jy/MyCobot_Project/mycobot_win/mycobot_vision/custom_data.yaml'
-# YAML 로드
-try:
-    with open(YAML_PATH, 'r') as f:
-        data_yaml = yaml.safe_load(f)
-        CLASS_NAMES = data_yaml['names']
-        print(f"[INFO] YOLO 클래스 이름 로드: {CLASS_NAMES}")
-except FileNotFoundError:
-    print(f"[ERROR] YAML 파일을 찾을 수 없습니다: {YAML_PATH}")
-    CLASS_NAMES = []
-
-# YOLO 모델 로드
-try:
-    model = YOLO(MODEL_PATH)
-    print("[INFO] YOLO 모델 로드 성공.")
-except Exception as e:
-    print(f"[ERROR] YOLO 모델 로드 실패: {e}")
-    model = None
+import argparse
 
 def main():
+    # ---- 인자 설정 ----
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--mode", default=0)
+    args = ap.parse_args()
+    
     # ---- 설정 로드 ----
     C = load_config("config.json")
+
+    # ---- 모델 로드 ----
+    MODEL_PATH = C.MODEL_PATH_DIR
+    YAML_PATH = C.YAML_PATH_DIR
+    # YAML 로드
+    try:
+        with open(YAML_PATH, 'r') as f:
+            data_yaml = yaml.safe_load(f)
+            CLASS_NAMES = data_yaml['names']
+            print(f"[INFO] YOLO 클래스 이름 로드: {CLASS_NAMES}")
+            model = YOLO(MODEL_PATH)
+        print("[INFO] YOLO 모델 로드 성공.")
+    except FileNotFoundError:
+        print(f"[ERROR] YAML 파일을 찾을 수 없습니다: {YAML_PATH}")
+        CLASS_NAMES = []
+    except Exception as e:
+        print(f"[ERROR] YOLO 모델 로드 실패: {e}")
+        model = None
 
     # ---- 카메라 준비 ----
     cam = cv2.VideoCapture(C.CAM_INDEX)
@@ -63,27 +64,31 @@ def main():
                 print("[ERROR] 프레임 읽기 실패.")
                 break
                 
-            # [추가] YOLO 모델을 통한 불량/정상 판별
-            detected_type = None
-            if model is not None:
-                results = model(frame, device='cpu', verbose=False)
-                boxes = results[0].boxes
-                if len(boxes) > 0:
-                    cls_idx = int(boxes[0].cls[0])  # 첫 번째 객체 클래스 인덱스
-                    class_name = CLASS_NAMES[cls_idx]
-                    print(f"[YOLO DETECT] 검출된 클래스: {class_name}")
+            # ---- YOLO normal or anomaly ----
+            if args.mode == 0:
+                detected_type = None
+                if model is not None:
+                    results = model(frame, device='cpu', verbose=False)
+                    boxes = results[0].boxes
+                    if len(boxes) > 0:
+                        cls_idx = int(boxes[0].cls[0])  # 첫 번째 객체 클래스 인덱스
+                        class_name = CLASS_NAMES[cls_idx]
+                        print(f"[YOLO DETECT] 검출된 클래스: {class_name}")
 
-                    # anomaly 계열이면 anomaly, normal이면 normal로 분류
-                    if class_name.startswith("anomaly"):
-                        detected_type = "anomaly"
-                    elif class_name == "normal":
-                        detected_type = "normal"
-                    else:
-                        detected_type = "unknown"
+                        # anomaly 계열이면 anomaly, normal이면 normal로 분류
+                        if class_name.startswith("anomaly"):
+                            detected_type = "anomaly"
+                        elif class_name == "normal":
+                            detected_type = "normal"
+                        else:
+                            detected_type = "unknown"
 
             # ---- 기존 detector (색상 판단) ----
             result = detector.process(frame)
             output = result["overlay"]
+
+            # ---- 시각화 처리 ----
+            cv2.imshow("Frame", output)
 
             if result["has_target"] and result["robot_action"]:
                 x_t = result["x_t"]
@@ -104,33 +109,33 @@ def main():
 
                     # [변경된 분류 로직]
                     # 색상 + YOLO 결과 모두 고려
-                    if color == "red":
-                        print("[ACTION] red 감지 → anomaly 위치로 이동")
-                        r.place_box("anomaly", placeList[0])
-                        placeList[0] += 1
-                    elif color == "green":
-                        print("[ACTION] green 감지 → normal 위치로 이동")
-                        r.place_box("normal", placeList[2])
-                        placeList[2] += 1
-                    elif color == "blue":
-                        print("[ACTION] blue 감지 → blue 위치로 이동")
-                        r.place_box("blue", placeList[1])
-                        placeList[1] += 1
-                    # 추가로 YOLO 결과에 따라 색상 불분명시 대체 동작 수행
-                    elif detected_type == "anomaly":
-                        print("[ACTION] YOLO anomaly 판정 → anomaly 위치로 이동")
-                        r.place_box("anomaly", 2)
-                    elif detected_type == "normal":
-                        print("[ACTION] YOLO normal 판정 → normal 위치로 이동")
-                        r.place_box("normal", 2)
-                    else:
-                        print("[WARN] 색상 및 YOLO 판정 불명 → 동작 생략")
+                    if args.mode == 1:
+                        if color == "red":
+                            print("[ACTION] red 감지 → anomaly 위치로 이동")
+                            r.place_box("anomaly", placeList[0])
+                            placeList[0] += 1
+                        elif color == "green":
+                            print("[ACTION] green 감지 → normal 위치로 이동")
+                            r.place_box("normal", placeList[2])
+                            placeList[2] += 1
+                        elif color == "blue":
+                            print("[ACTION] blue 감지 → blue 위치로 이동")
+                            r.place_box("blue", placeList[1])
+                            placeList[1] += 1
+                    elif args.mode == 0: 
+                        # 추가로 YOLO 결과에 따라 색상 불분명시 대체 동작 수행
+                        if detected_type == "anomaly":
+                            print("[ACTION] YOLO anomaly 판정 → anomaly 위치로 이동")
+                            r.place_box("anomaly", 2)
+                        elif detected_type == "normal":
+                            print("[ACTION] YOLO normal 판정 → normal 위치로 이동")
+                            r.place_box("normal", 2)
+                        else:
+                            print("[WARN] 색상 및 YOLO 판정 불명 → 동작 생략")
 
                 except Exception as e:
                     print(f"[ERROR] 로봇 명령 실패: {e}")
-
-            # 시각화/키 처리
-            cv2.imshow("Frame", output)
+                    
             key = cv2.waitKey(3) & 0xFF
             if key == 27:  # ESC
                 break
