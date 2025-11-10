@@ -7,6 +7,7 @@ from ultralytics import YOLO
 from src.config_loader import load_config 
 import src.utility as util
 from src.detector import PickTargetDetector
+from src.vision_module import VisionModule 
 from src.robot import Robot
 import argparse
 
@@ -19,23 +20,8 @@ def main():
     # ---- 설정 로드 ----
     C = load_config("config.json")
 
-    # ---- 모델 로드 ----
-    MODEL_PATH = C.MODEL_PATH_DIR
-    YAML_PATH = C.YAML_PATH_DIR
-    # YAML 로드
-    try:
-        with open(YAML_PATH, 'r') as f:
-            data_yaml = yaml.safe_load(f)
-            CLASS_NAMES = data_yaml['names']
-            print(f"[INFO] YOLO 클래스 이름 로드: {CLASS_NAMES}")
-            model = YOLO(MODEL_PATH)
-        print("[INFO] YOLO 모델 로드 성공.")
-    except FileNotFoundError:
-        print(f"[ERROR] YAML 파일을 찾을 수 없습니다: {YAML_PATH}")
-        CLASS_NAMES = []
-    except Exception as e:
-        print(f"[ERROR] YOLO 모델 로드 실패: {e}")
-        model = None
+    # ---- YOLO 로드 ----
+    vision = VisionModule(C)
 
     # ---- 카메라 준비 ----
     cam = cv2.VideoCapture(C.CAM_INDEX)
@@ -65,23 +51,8 @@ def main():
                 break
                 
             # ---- YOLO normal or anomaly ----
-            if args.mode == 0:
-                detected_type = None
-                if model is not None:
-                    results = model(frame, device='cpu', verbose=False)
-                    boxes = results[0].boxes
-                    if len(boxes) > 0:
-                        cls_idx = int(boxes[0].cls[0])  # 첫 번째 객체 클래스 인덱스
-                        class_name = CLASS_NAMES[cls_idx]
-                        print(f"[YOLO DETECT] 검출된 클래스: {class_name}")
-
-                        # anomaly 계열이면 anomaly, normal이면 normal로 분류
-                        if class_name.startswith("anomaly"):
-                            detected_type = "anomaly"
-                        elif class_name == "normal":
-                            detected_type = "normal"
-                        else:
-                            detected_type = "unknown"
+            detected_type, class_name = vision.detect(frame)
+            print(f"[YOLO] Detected: {class_name} ({detected_type})")
 
             # ---- 기존 detector (색상 판단) ----
             result = detector.process(frame)

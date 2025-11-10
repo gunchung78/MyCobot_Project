@@ -9,7 +9,6 @@ from ultralytics import YOLO
 
 class VisionModule:
     """카메라 + YOLO 모델 관리 클래스"""
-
     def __init__(self, config):
         """
         config 객체(C.MODEL_PATH_DIR, C.YAML_PATH_DIR, C.CAM_INDEX)를 이용해 초기화
@@ -42,28 +41,6 @@ class VisionModule:
             print(f"[ERROR] YOLO 모델 로드 실패: {e}")
 
     # -------------------------------------------------------
-    # 내부 함수: 카메라 초기화
-    # -------------------------------------------------------
-    def _init_camera(self):
-        self.cam = cv2.VideoCapture(self.config.CAM_INDEX)
-        if not self.cam.isOpened():
-            raise SystemExit("[ERROR] 카메라를 열 수 없습니다.")
-        ok, frame = self.cam.read()
-        if not ok:
-            self.cam.release()
-            raise SystemExit("[ERROR] 첫 프레임을 읽지 못했습니다.")
-        self.height, self.width = frame.shape[:2]
-        print(f"[INFO] 카메라 초기화 완료 ({self.width}x{self.height})")
-
-    # -------------------------------------------------------
-    # 프레임 읽기
-    # -------------------------------------------------------
-    def get_frame(self):
-        """현재 카메라 프레임을 반환"""
-        ret, frame = self.cam.read()
-        return frame if ret else None
-
-    # -------------------------------------------------------
     # YOLO 예측 수행
     # -------------------------------------------------------
     def detect(self, frame):
@@ -91,12 +68,3 @@ class VisionModule:
             detected_type = "unknown"
 
         return detected_type, class_name
-
-    # -------------------------------------------------------
-    # 자원 해제
-    # -------------------------------------------------------
-    def release(self):
-        """카메라 자원 해제"""
-        if self.cam.isOpened():
-            self.cam.release()
-        print("[INFO] VisionModule 종료 및 자원 해제 완료.")
