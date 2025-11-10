@@ -1,0 +1,12 @@
+names:
+- anomaly_circle
+- anomaly_i
+- anomaly_rectangle
+- anomaly_white_circle
+- anomaly_white_i
+- anomaly_white_rectangle
+- normal
+nc: 7
+test: C:/Dev/KAIROS_Project_2/AI_Cordinate/YOLO/team/test/images
+train: C:/Dev/KAIROS_Project_2/AI_Cordinate/YOLO/team/train/images
+val: C:/Dev/KAIROS_Project_2/AI_Cordinate/YOLO/team/val/images
