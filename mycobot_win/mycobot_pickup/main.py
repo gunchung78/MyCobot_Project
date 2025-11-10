@@ -6,6 +6,7 @@ from src.config_loader import load_config
 import src.utility as util
 from src.detector import PickTargetDetector
 from src.robot import Robot
+import box_moving_node as box
 
 def main():
     # ---- 설정 로드 ----
@@ -55,6 +56,7 @@ def main():
                         r.move_coords([x_t, 0, C.APPROACH_Z, C.ANCHOR_PY[3], C.ANCHOR_PY[4], C.ANCHOR_PY[5]], C.MOVE_SPEED, 0, sleep=0.5)
                         r.gripper_open()
                         r.move_coords(C.ANCHOR_PY, C.MOVE_SPEED, 0, sleep=0.5)
+
                 except Exception as e:
                     print(f"[ERROR] 로봇 명령 실패: {e}")
 

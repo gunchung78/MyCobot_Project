@@ -6,6 +6,7 @@ from src.config_loader import load_config
 import src.utility as util
 from src.detector import PickTargetDetector
 from src.robot import Robot
+import src.place as place
 
 def main():
     # ---- 설정 로드 ----
@@ -29,6 +30,7 @@ def main():
     r = Robot(C.PORT, C.BAUD, C.MOVE_SPEED, C.GRIPPER_OPEN_VAL, C.GRIPPER_CLOSE_VAL, C.GRIPPER_SPEED, C.ANCHOR_PY)
     r.power_on()
     r.gripper_open()
+    placeList=[0,0,0]   # red, blue, green
 
     try:
         while True:
@@ -43,6 +45,7 @@ def main():
                 x_t = result["x_t"]
                 y_t = result["y_t"]
                 rz_t = result["rz_t"] if result["rz_t"] is not None else C.ANCHOR_PY[5]
+                color = result["color"]
                 print(f"[RETURN] x={x_t:.2f}, y={y_t:.2f}, rz={rz_t:.2f} deg, pix=({result['u']},{result['v']}), color={result['color']}")
                 try:
                     # 접근(상부)
@@ -51,10 +54,15 @@ def main():
                     r.gripper_close()
                     # 복귀
                     r.move_coords(C.ANCHOR_PY, C.MOVE_SPEED, 0, sleep=0.5)
-                    if True:
-                        r.move_coords([x_t, 0, C.APPROACH_Z, C.ANCHOR_PY[3], C.ANCHOR_PY[4], C.ANCHOR_PY[5]], C.MOVE_SPEED, 0, sleep=0.5)
-                        r.gripper_open()
-                        r.move_coords(C.ANCHOR_PY, C.MOVE_SPEED, 0, sleep=0.5)
+                    if color == "red":
+                        place.place_box("red", placeList[0])
+                        placeList[0] += 1
+                    elif color == "blue":
+                        place.place_box("blue", placeList[1])
+                        placeList[1] += 1
+                    elif color == "green":
+                        place.place_box("green", placeList[2])
+                        placeList[2] += 1
                 except Exception as e:
                     print(f"[ERROR] 로봇 명령 실패: {e}")
 
