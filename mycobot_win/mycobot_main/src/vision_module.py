@@ -6,6 +6,7 @@
 import cv2
 import yaml
 from ultralytics import YOLO
+from pathlib import Path
 
 class VisionModule:
     """카메라 + YOLO 모델 관리 클래스"""
@@ -20,21 +21,33 @@ class VisionModule:
         self.height = None
         self._load_model()
 
+    def _resolve(self, p: str | Path) -> Path:
+        """상대경로면 'mycobot_main' 루트 기준으로 바꿔줌"""
+        p = Path(p)
+        if p.is_absolute():
+            return p
+        # vision_module.py -> src -> (parent: mycobot_main)
+        project_root = Path(__file__).resolve().parents[1]
+        return project_root / p
+
     # -------------------------------------------------------
     # 내부 함수: 모델 로드
     # -------------------------------------------------------
     def _load_model(self):
         try:
-            with open(self.config.YAML_PATH_DIR, 'r') as f:
+            yaml_path  = self._resolve(self.config.YAML_PATH_DIR)
+            model_path = self._resolve(self.config.MODEL_PATH_DIR)
+
+            with open(yaml_path, 'r') as f:
                 data_yaml = yaml.safe_load(f)
                 self.class_names = data_yaml.get('names', [])
                 print(f"[INFO] YOLO 클래스 이름 로드: {self.class_names}")
 
-            self.model = YOLO(self.config.MODEL_PATH_DIR)
+            self.model = YOLO(model_path)
             print("[INFO] YOLO 모델 로드 성공.")
 
-        except FileNotFoundError:
-            print(f"[ERROR] YAML 파일을 찾을 수 없습니다: {self.config.YAML_PATH_DIR}")
+        except FileNotFoundError as e:
+            print(f"[ERROR] 파일을 찾을 수 없습니다: {e}")
         except Exception as e:
             print(f"[ERROR] YOLO 모델 로드 실패: {e}")
 
