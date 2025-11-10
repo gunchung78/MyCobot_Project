@@ -176,9 +176,11 @@ class Robot:
                 print(f"[WARN] place_box: 알 수 없는 색상 '{val}' (동작 생략)")
                 return
 
-            # 공통 복귀 시퀀스
+            # # 공통 복귀 시퀀스
             self.move_and_wait("angles", [-6.94, 6.24, -55.19, -18.19, 81.03, -93.25])
-            self.move_and_wait("angles", [5.09, 0, -80, -0, 90, -90])
+            self.mc.sync_send_coords(self.ANCHOR_PY, self.move_speed, 0)
+            time.sleep(1.0)
+            # self.move_and_wait("angles", [5.09, 0, -80, -0, 90, -90])
 
         except Exception as e:
             print(f"[ERROR] place_box 실패: {e}")

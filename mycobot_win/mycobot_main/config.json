@@ -21,7 +21,7 @@
         0.0,
         0.0
     ],
-    "SCALE_X_MM_PER_PX": 0.42,
+    "SCALE_X_MM_PER_PX": 0.35,
     "SCALE_Y_MM_PER_PX": 0.42,
     "CAMERA_MM": -85,
     "CAL_RZ_OFFSET": 0.0,
@@ -110,9 +110,9 @@
     },
     "WAIT_SEC": 3.0,
     "ANGLE_WINDOW": 15,
-    "MOVE_SPEED": 40,
-    "APPROACH_Z": 248,
-    "GRIPPER_OPEN_VAL": 100,
+    "MOVE_SPEED": 30,
+    "APPROACH_Z": 243,
+    "GRIPPER_OPEN_VAL": 150,
     "GRIPPER_CLOSE_VAL": 10,
     "GRIPPER_SPEED": 20
 }

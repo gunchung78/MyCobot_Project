@@ -6,7 +6,6 @@ from src.config_loader import load_config
 import src.utility as util
 from src.detector import PickTargetDetector
 from src.robot import Robot
-import src.place as place
 
 def main():
     # ---- 설정 로드 ----
@@ -38,7 +37,7 @@ def main():
             if not ret:
                 print("[ERROR] 프레임 읽기 실패.")
                 break
-            
+                
             result = detector.process(frame)
             output = result["overlay"]
             if result["has_target"] and result["robot_action"]:
@@ -49,19 +48,20 @@ def main():
                 print(f"[RETURN] x={x_t:.2f}, y={y_t:.2f}, rz={rz_t:.2f} deg, pix=({result['u']},{result['v']}), color={result['color']}")
                 try:
                     # 접근(상부)
+                    r.move_coords([x_t, y_t, C.ANCHOR_PY[2]+30, C.ANCHOR_PY[3], C.ANCHOR_PY[4], rz_t], C.MOVE_SPEED, 0, sleep=0.5)
                     r.move_coords([x_t, y_t, C.APPROACH_Z, C.ANCHOR_PY[3], C.ANCHOR_PY[4], rz_t], C.MOVE_SPEED, 0, sleep=0.5)
                     # 집기
                     r.gripper_close()
                     # 복귀
                     r.move_coords(C.ANCHOR_PY, C.MOVE_SPEED, 0, sleep=0.5)
                     if color == "red":
-                        place.place_box("red", placeList[0])
+                        r.place_box("red", placeList[0])
                         placeList[0] += 1
                     elif color == "blue":
-                        place.place_box("blue", placeList[1])
+                        r.place_box("blue", placeList[1])
                         placeList[1] += 1
                     elif color == "green":
-                        place.place_box("green", placeList[2])
+                        r.place_box("green", placeList[2])
                         placeList[2] += 1
                 except Exception as e:
                     print(f"[ERROR] 로봇 명령 실패: {e}")
