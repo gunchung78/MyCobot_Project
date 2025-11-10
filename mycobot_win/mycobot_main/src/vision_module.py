@@ -18,9 +18,7 @@ class VisionModule:
         self.class_names = []
         self.width = None
         self.height = None
-
         self._load_model()
-        self._init_camera()
 
     # -------------------------------------------------------
     # 내부 함수: 모델 로드
