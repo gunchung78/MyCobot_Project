@@ -1,7 +1,7 @@
 {
-    "PORT": "COM3",
+    "PORT": "/dev/ttyACM0",
     "BAUD": 115200,
-    "CAM_INDEX": 1,
+    "CAM_INDEX": 0,
     "PICK_ZONE_REL_W": 0.40,
     "PICK_ZONE_REL_H": 0.50,
     "PICK_CX": 320,
