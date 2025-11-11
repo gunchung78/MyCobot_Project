@@ -6,6 +6,7 @@ import threading
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Int32
+from std_msgs.msg import Float32MultiArray
 from sensor_msgs.msg import JointState
 from mycobot_interfaces.srv import SetAngles
 from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
@@ -46,6 +47,10 @@ class ClassifyControl(Node):
             Int32, '/classify_result', self._on_classify, 10
         )
 
+        self.sub_detector = self.create_subscription(
+            Float32MultiArray, '/detector_result', self._on_detector, 10
+        )
+
         # --- 제어 파라미터 ---
         self.speed = 25
         self.reach_tolerance_rad = math.radians(3.0)  # ⬇️ 오차 허용 조금 완화
@@ -54,6 +59,7 @@ class ClassifyControl(Node):
         self.consecutive_ok_needed = 3
         self.stale_after_sec = 3.0
         self.is_busy = False
+        self.label = -1
 
         # --- 시퀀스 ---
         self.home_pose = [0, 0, 0, 0, 0, 0]
@@ -98,31 +104,51 @@ class ClassifyControl(Node):
     # =========================================================
     # 🟢 분류 결과 콜백
     def _on_classify(self, msg: Int32):
-        label = int(msg.data)
+        self.label = int(msg.data)
+        # if self.is_busy:
+        #     self.get_logger().warn('⛔ Sequence busy, ignoring trigger.')
+        #     return
+
+        # # 🔧 핵심: 길게 도는 시퀀스는 별도 스레드에서 실행
+        # def _runner(seq):
+        #     try:
+        #         self.is_busy = True
+        #         self._exec_sequence(seq)
+        #         self.get_logger().info('🏠 Returning Home...')
+        #         self.move_joint(self.home_pose)
+        #     except Exception:
+        #         self.get_logger().error(traceback.format_exc())
+        #     finally:
+        #         self.is_busy = False
+
+        # if label == 0:
+        #     self.get_logger().info('📦 GOOD → running good_sequence')
+        #     threading.Thread(target=_runner, args=(self.good_sequence,), daemon=True).start()
+        # elif label == 1:
+        #     self.get_logger().info('⚠️ BAD → running bad_sequence')
+        #     threading.Thread(target=_runner, args=(self.bad_sequence,), daemon=True).start()
+        # else:
+        #     self.get_logger().warn(f'❓ Unknown label: {label}')
+
+    # =========================================================
+    # 🟢 detector 결과 콜백
+    def _on_detector(self, msg: Float32MultiArray):
+        if len(msg.data) == 4:
+            result = msg.data
+
         if self.is_busy:
             self.get_logger().warn('⛔ Sequence busy, ignoring trigger.')
             return
 
-        # 🔧 핵심: 길게 도는 시퀀스는 별도 스레드에서 실행
         def _runner(seq):
             try:
                 self.is_busy = True
-                self._exec_sequence(seq)
-                self.get_logger().info('🏠 Returning Home...')
-                self.move_joint(self.home_pose)
+                self.get_logger().info(seq)
             except Exception:
                 self.get_logger().error(traceback.format_exc())
             finally:
                 self.is_busy = False
-
-        if label == 0:
-            self.get_logger().info('📦 GOOD → running good_sequence')
-            threading.Thread(target=_runner, args=(self.good_sequence,), daemon=True).start()
-        elif label == 1:
-            self.get_logger().info('⚠️ BAD → running bad_sequence')
-            threading.Thread(target=_runner, args=(self.bad_sequence,), daemon=True).start()
-        else:
-            self.get_logger().warn(f'❓ Unknown label: {label}')
+        threading.Thread(target=_runner, args=(result,), daemon=True).start()
 
     # =========================================================
     # 내부 유틸
@@ -233,6 +259,7 @@ def main(args=None):
     except Exception:
         node.get_logger().error(traceback.format_exc())
     finally:
+        print(node.label)
         node.destroy_node()
         rclpy.shutdown()
 

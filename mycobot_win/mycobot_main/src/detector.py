@@ -171,6 +171,7 @@ class PickTargetDetector:
         x_t = C.ANCHOR_PY[0] - dx_mm + C.CAMERAX_MM
         y_t = C.ANCHOR_PY[1] + dy_mm + C.CAMERAY_MM
 
+
         angle_img_raw = float(selected["angle_img"])
         if angle_img_raw is not None:
             self.angles_buf.append(angle_img_raw)
