@@ -1,0 +1,120 @@
+{
+    "PORT": "/dev/ttyACM0",
+    "BAUD": 115200,
+    "CAM_INDEX": 0,
+    "MODEL_PATH_DIR": "data/best.pt",
+    "YAML_PATH_DIR": "data/custom_data.yaml",
+    "PICK_ZONE_REL_W": 0.40,
+    "PICK_ZONE_REL_H": 0.50,
+    "PICK_CX": 320,
+    "PICK_CY": 240,
+    "PICK_ZONE_COLOR": [
+        255,
+        0,
+        255
+    ],
+    "PICK_ZONE_THICK": 2,
+    "FILTER_MASK_TO_ZONE": true,
+    "ANCHOR_PY": [
+        192.0,
+        0.0,
+        300.0,
+        -180.0,
+        0.0,
+        0.0
+    ],
+    "SCALE_X_MM_PER_PX": 0.35,
+    "SCALE_Y_MM_PER_PX": 0.42,
+    "CAMERA_MM": -85,
+    "CAL_RZ_OFFSET": 0.0,
+    "APPLY_RZ": true,
+    "MODE": 0,
+    "VISION_RESULT": [
+        0,
+        1
+    ],
+    "MIN_AREA": 1000,
+    "MORPH_KERNEL_SIZE": 3,
+    "MORPH_OPEN_ITER": 1,
+    "MORPH_CLOSE_ITER": 1,
+    "COLOR_RANGES": {
+        "red": [
+            [
+                [
+                    0,
+                    70,
+                    70
+                ],
+                [
+                    10,
+                    255,
+                    255
+                ]
+            ],
+            [
+                [
+                    170,
+                    70,
+                    70
+                ],
+                [
+                    179,
+                    255,
+                    255
+                ]
+            ]
+        ],
+        "blue": [
+            [
+                [
+                    90,
+                    100,
+                    80
+                ],
+                [
+                    110,
+                    255,
+                    255
+                ]
+            ]
+        ],
+        "green": [
+            [
+                [
+                    35,
+                    100,
+                    125
+                ],
+                [
+                    85,
+                    255,
+                    255
+                ]
+            ]
+        ]
+    },
+    "COLOR_BRG_DRAW": {
+        "red": [
+            0,
+            0,
+            255
+        ],
+        "blue": [
+            255,
+            0,
+            0
+        ],
+        "green": [
+            0,
+            255,
+            0
+        ]
+    },
+    "WAIT_SEC": 3.0,
+    "ANGLE_WINDOW": 15,
+    "MOVE_SPEED": 30,
+    "APPROACH_Z": 243,
+    "GRIPPER_OPEN_VAL": 150,
+    "GRIPPER_CLOSE_VAL": 10,
+    "GRIPPER_SPEED": 20
+}

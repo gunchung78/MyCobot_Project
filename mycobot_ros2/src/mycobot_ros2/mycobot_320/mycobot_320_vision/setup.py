@@ -10,7 +10,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/launch', ['launch/box_detector.launch.py']),
+        ('share/' + package_name + '/launch', ['launch/detector.launch.py']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -21,8 +21,7 @@ setup(
     extras_require={'test': ['pytest']},
     entry_points={
         'console_scripts': [
-            # ⬇️ 여기!  mycobot_320_vision.box_detector_node:main  로 써야 함
-            'box_detector = mycobot_320_vision.box_detector_node:main',
+	    'detector_node = mycobot_320_vision.detector:main',
         ],
     },
 )
