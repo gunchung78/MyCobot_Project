@@ -13,7 +13,7 @@ import argparse
 def main():
     # ---- 인자 설정 ----
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mode", default=0)
+    ap.add_argument("--mode", type=int, default=0)
     args = ap.parse_args()
     
     # ---- 설정 로드 ----
@@ -25,6 +25,7 @@ def main():
 
     # ---- 카메라 준비 ----
     cam = cv2.VideoCapture(C.CAM_INDEX)
+    cam.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     if not cam.isOpened():
         raise SystemExit("카메라를 열 수 없습니다.")
     ok, frame0 = cam.read()
@@ -43,9 +44,16 @@ def main():
     r.gripper_open()
     placeList=[0,0,0]   # red, blue, green
 
+    def read_latest(cap, discard=4):
+    # discard번 grab만 하고, 마지막 한 장만 retrieve
+        for _ in range(discard):
+            cap.grab()
+        ret, frame = cap.retrieve()
+        return ret, frame
+
     try:
         while True:
-            ret, frame = cam.read()
+            ret, frame = read_latest(cam, discard=4)
             if not ret:
                 print("[ERROR] 프레임 읽기 실패.")
                 break
@@ -53,7 +61,8 @@ def main():
             # ---- YOLO normal or anomaly ----
             if args.mode == 0:
                 detected_type, class_name = vision.detect(frame)
-                print(f"[YOLO] Detected: {class_name} ({detected_type})")
+                if(class_name is not None):
+                    print(f"[YOLO] Detected: {class_name} ({detected_type})")
             else:
                 detected_type = None
                 class_name = None
@@ -73,41 +82,57 @@ def main():
                 print(f"[INFO] 감지 색상: {color}, YOLO 판정: {detected_type}")
 
                 try:
-                    # 접근(상부)
-                    r.move_coords([x_t, y_t, C.ANCHOR_PY[2]+30, C.ANCHOR_PY[3], C.ANCHOR_PY[4], rz_t], C.MOVE_SPEED, 0, sleep=0.5)
-                    r.move_coords([x_t, y_t, C.APPROACH_Z, C.ANCHOR_PY[3], C.ANCHOR_PY[4], rz_t], C.MOVE_SPEED, 0, sleep=0.5)
-                    # 집기
-                    r.gripper_close()
-                    # 복귀
-                    r.move_coords(C.ANCHOR_PY, C.MOVE_SPEED, 0, sleep=0.5)
+                    if args.mode == 1 and  (color ==  "white" or color is None ):
+                       print(f'no color {color}')
+                       r.refresh_home();
+                    elif args.mode == 0 and (detected_type ==  "unknown" or detected_type is None): 
+                       print(f'no detected_type {detected_type}')
+                       r.refresh_home();
 
-                    # [변경된 분류 로직]
-                    # 색상 + YOLO 결과 모두 고려
-                    if args.mode == 1:
-                        if color == "red":
-                            print("[ACTION] red 감지")
-                            r.place_box("red", placeList[0])
-                            placeList[0] += 1
-                        elif color == "green":
-                            print("[ACTION] green 감지")
-                            r.place_box("green", placeList[2])
-                            placeList[2] += 1
-                        elif color == "blue":
-                            print("[ACTION] blue 감지")
-                            r.place_box("blue", placeList[1])
-                            placeList[1] += 1
-                    elif args.mode == 0: 
-                        # 추가로 YOLO 결과에 따라 색상 불분명시 대체 동작 수행
-                        if detected_type == "anomaly":
-                            print("[ACTION] YOLO anomaly 판정")
-                            r.place_box("anomaly", 2)
-                        elif detected_type == "normal":
-                            print("[ACTION] YOLO normal 판정")
-                            r.place_box("normal", 2)
-                        else:
-                            print("[WARN] 색상 및 YOLO 판정 불명 → 동작 생략")
+                    else:
+                        # 접근(상부)
+                        # r.move_coords([x_t, y_t, C.ANCHOR_PY[2]+30, C.ANCHOR_PY[3], C.ANCHOR_PY[4], rz_t], C.MOVE_SPEED, 0, sleep=0.5)
+
+                        r.move_and_wait("angles", [-6.94, 6.24, -55.19, -18.19, 81.03, -93.25])
+
+                        # r.move_coords([x_t, y_t, C.APPROACH_Z, C.ANCHOR_PY[3], C.ANCHOR_PY[4], rz_t], C.MOVE_SPEED, 0, sleep=0.5)
+                        r.move_and_wait("coords", [x_t, y_t, C.ANCHOR_PY[2], C.ANCHOR_PY[3], C.ANCHOR_PY[4] , rz_t], C.MOVE_SPEED, 0)
+
+                        # 집기
+                        r.gripper_close()
+                        # 복귀
+                        r.move_and_wait("angles", [-6.94, 6.24, -55.19, -18.19, 81.03, -93.25])
+
+                        # [변경된 분류 로직]
+                        # 색상 + YOLO 결과 모두 고려
+                        if args.mode == 1:
+                            if color == "red":
+                                print("[ACTION] red 감지")
+                                r.place_box("red", placeList[0])
+                                placeList[0] += 1
+                            elif color == "green":
+                                print("[ACTION] green 감지")
+                                r.place_box("green", placeList[2])
+                                placeList[2] += 1
+                            elif color == "blue":
+                                print("[ACTION] blue 감지")
+                                r.place_box("blue", placeList[1])
+                                placeList[1] += 1
+                        elif args.mode == 0: 
+                            # 추가로 YOLO 결과에 따라 색상 불분명시 대체 동작 수행
+                            if detected_type == "anomaly":
+                                print("[ACTION] YOLO anomaly 판정")
+                                r.place_box("anomaly")
+                            elif detected_type == "normal":
+                                print("[ACTION] YOLO normal 판정")
+                                r.place_box("normal", placeList[2])
+                                placeList[2] += 1
+                            else:
+                                print("[WARN] 색상 및 YOLO 판정 불명 → 동작 생략")
                 except Exception as e:
                     print(f"[ERROR] 로봇 명령 실패: {e}")
+            
+
 
             key = cv2.waitKey(3) & 0xFF
             if key == 27:  # ESC

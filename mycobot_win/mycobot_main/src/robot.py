@@ -60,9 +60,7 @@ class Robot:
             except Exception: pass
 
             if go_anchor:
-                # self.mc.sync_send_coords(self.ANCHOR_PY, self.move_speed, 0)
-                self.move_and_wait("angles", [0, 0, -80, -0, 90, -90])
-                time.sleep(0.5)
+                self.go_anchor()
         except Exception as e:
             print(f"[WARN] power_on 실패: {e}")
 
@@ -108,15 +106,7 @@ class Robot:
         except Exception as e:
             print(f"[WARN] sync_send_coords 실패: {e}")
 
-    def move_angles(self, angles: Sequence[float], speed: Optional[int]=None, sleep: float=0.0):
-        """동기 관절 이동 (도달 보장)"""
-        try:
-            self.mc.sync_send_angles(list(angles), speed or self.move_speed)
-            if sleep > 0:
-                time.sleep(sleep)
-        except Exception as e:
-            print(f"[WARN] sync_send_angles 실패: {e}")
-
+ 
 
     # ── 그리퍼 호환 래퍼 ──────────────────────────
     def gripper_open(self):
@@ -141,7 +131,7 @@ class Robot:
         z = idx * 25
         try:
             if val in ('green', 'normal'):
-                z = z + 150
+                z = z + 148
                 # 접근 자세(관절)
                 self.move_and_wait("angles", [-10, 0, 78.95, -21, -87.36, -15])
                 # 드롭 좌표(툴 좌표)
@@ -158,29 +148,47 @@ class Robot:
                 self.mc.set_gripper_value(40, 20, 1)
                 self.move_and_wait("angles", [12.12, 0, 70.83, -16.08, -67.5, -150])
 
-            elif val in ('red', 'anomaly'):
+            elif val in ('red'):
                 z = z + 160
                 self.move_and_wait("angles", [136.66, 0, -55.98, 0, 109.51, -30])
                 self.move_and_wait("coords", [-180, 240, z, -173.15, 0, 90], speed=10, delay=1.0)
                 self.mc.set_gripper_value(40, 20, 1)
                 self.move_and_wait("angles", [136.66, 0, -55.98, 0, 109.51, -30])
 
+            elif val in ('anomaly'):
+                self.move_and_wait("angles", [-80, -20, -65, -0, 90, -90])
+                self.mc.set_gripper_value(40, 20, 1)
+              
+
             else:
                 print(f"[WARN] place_box: 알 수 없는 색상 '{val}' (동작 생략)")
                 return
 
             # # 공통 복귀 시퀀스
-            self.move_and_wait("angles", [-6.94, 6.24, -55.19, -18.19, 81.03, -93.25])
-            self.mc.sync_send_coords(self.ANCHOR_PY, self.move_speed, 0)
-            time.sleep(1.0)
-            # self.move_and_wait("angles", [5.09, 0, -80, -0, 90, -90])
+            self.go_anchor()
 
         except Exception as e:
             print(f"[ERROR] place_box 실패: {e}")
 
     # ── 편의 함수 ─────────────────────────────────
-    def go_anchor(self, sleep: float=0.3):
-        """앵커 좌표로 복귀"""
-        self.move_coords(self.ANCHOR_PY, self.move_speed, 0, sleep=sleep)
+    def go_anchor(self, speed=20, delay=0.2):
+        try:
+            # 웨이포인트 먼저 이동
+            self.move_and_wait("angles", [-6.94, 6.24, -55.19, -18.19, 81.03, -93.25], speed, delay)
+            """앵커 좌표로 복귀"""
+            self.move_and_wait("angles", [0, 0, -80, -0, 90, -90], speed, delay)
+        except Exception as e:
+            print(f"[WARN] go_anchor 실패: {e}")
+
+    def refresh_home(self, speed=20, delay=0.2):
+        try:
+            self.move_and_wait("angles", [0, 10, -80, -0, 90, -90], speed, delay)
+            """앵커 좌표로 복귀"""
+            self.move_and_wait("angles", [0, 0, -80, -0, 90, -90], speed, delay)
+        except Exception as e:
+            print(f"[WARN] go_anchor 실패: {e}")
+
+       
+
 
    
