@@ -8,10 +8,11 @@ from rclpy.node import Node
 from std_msgs.msg import Int32
 from std_msgs.msg import Float32MultiArray
 from sensor_msgs.msg import JointState
-from mycobot_interfaces.srv import SetAngles, SetCoords
+from mycobot_interfaces.srv import SetAngles
 from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from mycobot_320_ctrl.src.config_loader import load_config 
+
 
 JOINT_LIMITS = [170.0, 160.0, 160.0, 170.0, 170.0, 175.0]
 
@@ -22,9 +23,8 @@ class ClassifyControl(Node):
 
         # --- 서비스 클라이언트 ---
         self.client_angles = self.create_client(SetAngles, 'set_angles')
-        self.client_coords = self.create_client(SetCoords, 'set_coords')
-        while not self.client_angles.wait_for_service(timeout_sec=2.0) or not self.client_coords.wait_for_service(timeout_sec=2.0):
-            self.get_logger().info('⏳ Waiting for /set_angles or /set_coords service...')
+        while not self.client_angles.wait_for_service(timeout_sec=2.0):
+            self.get_logger().info('⏳ Waiting for /set_angles service...')
 
         # --- 상태 변수 ---
         self._lock = threading.Lock()
@@ -32,6 +32,8 @@ class ClassifyControl(Node):
         self.current_stamp = None
         self.target_angles_rad = None
         self.reached_event = threading.Event()
+        self.coords_xyzrpy = None     # [x,y,z,rx,ry,rz]
+        self.angles_deg = None        # [j1..j6] in degree
 
         # --- QoS 설정 ---
         qos_profile = QoSProfile(
@@ -48,9 +50,14 @@ class ClassifyControl(Node):
         self.sub_classify = self.create_subscription(
             Int32, '/classify_result', self._on_classify, 10
         )
-
         self.sub_detector = self.create_subscription(
             Float32MultiArray, '/detector_result', self._on_detector, 10
+        )
+        self.sub_coords = self.create_subscription(
+            Float32MultiArray, '/mycobot/coords', self._on_coords, qos_profile
+        )
+        self.sub_angles = self.create_subscription(
+            Float32MultiArray, '/mycobot/angles', self._on_angles, qos_profile
         )
 
         # --- 제어 파라미터 ---
@@ -127,6 +134,24 @@ class ClassifyControl(Node):
             finally:
                 self.is_busy = False
         threading.Thread(target=_runner, args=(result,), daemon=True).start()
+
+    def _on_coords(self, msg: Float32MultiArray):
+        if len(msg.data) == 6:
+            with self._lock:
+                self.coords_xyzrpy = [float(v) for v in msg.data]
+            # 디버그 출력(선택)
+            # self.get_logger().info(f"coords: {self.coords_xyzrpy}")
+        else:
+            self.get_logger().warn(f"/mycobot/coords len={len(msg.data)} (expect 6)")
+
+    def _on_angles_deg(self, msg: Float32MultiArray):
+        if len(msg.data) == 6:
+            with self._lock:
+                self.angles_deg = [float(v) for v in msg.data]
+            # self.get_logger().info(f"angles_deg: {self.angles_deg}")
+        else:
+            self.get_logger().warn(f"/mycobot/angles_deg len={len(msg.data)} (expect 6)")
+
 
     # =========================================================
     # 내부 유틸

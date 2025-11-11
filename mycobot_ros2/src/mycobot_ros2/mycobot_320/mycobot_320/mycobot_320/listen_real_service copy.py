@@ -87,8 +87,6 @@ class MyCobotDriver(Node):
         self._last_valid_angles = None
 
         self.pub = self.create_publisher(JointState, 'joint_states', 10)
-        self.pub_angles_f32 = self.create_publisher(Float32MultiArray, '/mycobot/angles', 10)
-        self.pub_coords_f32 = self.create_publisher(Float32MultiArray, '/mycobot/coords', 10)
         self.timer = self.create_timer(0.02, self.publish_joint_states)
 
         # Service servers
@@ -101,19 +99,18 @@ class MyCobotDriver(Node):
         self.srv_force_gripper = self.create_service(GripperStatus, 'set_force_gripper', self.set_force_gripper_callback)
 
     def publish_joint_states(self):
-        """Publish joint_states + (angles/coords) at 50 Hz."""
+        """Publish current joint states to the `joint_states` topic."""
         try:
             lock = acquire('/tmp/mycobot_lock')
             if lock is None:
+                # 🟩 추가: 락 점유 중이면 skip (대기하지 않음)
                 self.get_logger().warn("publish_joint_states: lock busy, skip once")
                 return
 
-            # ⬇️ 한 번의 락에서 두 값 모두 읽기
-            angles = self.mc.get_angles()          # e.g. [deg, ...] len==6
-            coords = self.mc.get_coords()          # e.g. [x,y,z,rx,ry,rz]
+            angles = self.mc.get_angles()
             release(lock)
 
-            # ---- 각도 캐시/유효성 ----
+            # 🟩 수정: 기존 0.0,0.0,0.0 필터링 완화 + 캐시 로직 추가
             if not isinstance(angles, list) or len(angles) != 6:
                 if self._last_valid_angles is None:
                     return
@@ -121,7 +118,6 @@ class MyCobotDriver(Node):
             else:
                 self._last_valid_angles = angles[:]
 
-            # ---- joint_states (rad) 기존 로직 유지 ----
             js = JointState()
             js.header = Header()
             js.header.stamp = self.get_clock().now().to_msg()
@@ -131,30 +127,13 @@ class MyCobotDriver(Node):
                 "joint4_to_joint3",
                 "joint5_to_joint4",
                 "joint6_to_joint5",
-                "joint6output_to_joint6",
+                "joint6output_to_joint6"
             ]
-            js.position = [math.radians(a) for a in angles]  # rad로 발행(표준)
+            js.position = [math.radians(a) for a in angles]
             self.pub.publish(js)
-
-            # ---- 추가1: angles_deg 토픽 (그대로 deg) ----
-            msg_ang = Float32MultiArray()
-            msg_ang.data = [float(a) for a in angles]
-            self.pub_angles_f32.publish(msg_ang)
-
-            # ---- 추가2: coords 토픽 ----
-            if isinstance(coords, list) and len(coords) == 6 and all(c != -1 for c in coords):
-                msg_xyzrpy = Float32MultiArray()
-                # 필요 시 mm→m, deg→rad 변환 가능하나, 요청대로 원형 그대로 발행
-                msg_xyzrpy.data = [float(c) for c in coords]  # [x,y,z,rx,ry,rz]
-                self.pub_coords_f32.publish(msg_xyzrpy)
-            else:
-                # 좌표가 일시적으로 비정상(-1 포함 등)일 수 있어 경고만
-                self.get_logger().warn(f"coords invalid or len!=6: {coords}")
-
         except Exception as e:
             e = traceback.format_exc()
             self.get_logger().error(f"Joint state publish error: {e}")
-
 
     def set_angles_callback(self, request, response):
         """Set joint angles via ROS2 service.
