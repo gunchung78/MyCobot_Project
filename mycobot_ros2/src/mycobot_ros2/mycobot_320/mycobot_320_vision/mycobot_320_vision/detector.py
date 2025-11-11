@@ -9,8 +9,10 @@ from collections import deque
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32MultiArray
-from mycobot_320_vision.utility import *
+from mycobot_320_vision.src.utility import *
+from mycobot_320_vision.src.config_loader import load_config 
 
+C = load_config("config.json")
 
 class DetectorNode(Node):
     def __init__(self):
@@ -20,62 +22,62 @@ class DetectorNode(Node):
         # ===============================
         # Config (config.json 내용 반영)
         # ===============================
-        self.PORT = "/dev/ttyACM0"
-        self.BAUD = 115200
-        self.CAM_INDEX = 0
-        self.MODEL_PATH_DIR = "mycobot_320_vision/mycobot_320_vision/data/best.pt"
-        self.YAML_PATH_DIR = "mycobot_320_vision/mycobot_320_vision/data/custom_data.yaml"
+        # self.PORT = "/dev/ttyACM0"
+        # self.BAUD = 115200
+        # self.CAM_INDEX = 0
+        # self.MODEL_PATH_DIR = "mycobot_320_vision/mycobot_320_vision/data/best.pt"
+        # self.YAML_PATH_DIR = "mycobot_320_vision/mycobot_320_vision/data/custom_data.yaml"
 
-        self.PICK_CX = 320
-        self.PICK_CY = 240
-        self.PICK_ZONE_REL_W = 0.4
-        self.PICK_ZONE_REL_H = 0.5
-        self.PICK_ZONE_COLOR = (0, 255, 255)  # (B,G,R)
-        self.PICK_ZONE_THICK = 2
-        self.FILTER_MASK_TO_ZONE = True
+        # self.PICK_CX = 320
+        # self.PICK_CY = 240
+        # self.PICK_ZONE_REL_W = 0.4
+        # self.PICK_ZONE_REL_H = 0.5
+        # self.PICK_ZONE_COLOR = (0, 255, 255)  # (B,G,R)
+        # self.PICK_ZONE_THICK = 2
+        # self.FILTER_MASK_TO_ZONE = True
 
-        self.ANCHOR_PY = [192.0, 0.0, 300.0, -180.0, 0.0, 0.0]
+        # self.ANCHOR_PY = [192.0, 0.0, 300.0, -180.0, 0.0, 0.0]
 
-        self.SCALE_X_MM_PER_PX = 0.35
-        self.SCALE_Y_MM_PER_PX = 0.42
-        self.CAMERA_MM = -85
-        self.CAL_RZ_OFFSET = 0.0
-        self.APPLY_RZ = True
+        # self.SCALE_X_MM_PER_PX = 0.35
+        # self.SCALE_Y_MM_PER_PX = 0.42
+        # self.CAMERA_MM = -85
+        # self.CAL_RZ_OFFSET = 0.0
+        # self.APPLY_RZ = True
 
-        self.MODE = 0
-        self.VISION_RESULT = [0, 1]
-        self.MIN_AREA = 1000
-        self.MORPH_KERNEL_SIZE = 3
-        self.MORPH_OPEN_ITER = 1
-        self.MORPH_CLOSE_ITER = 1
+        # self.MODE = 0
+        # self.VISION_RESULT = [0, 1]
+        # self.MIN_AREA = 1000
+        # self.MORPH_KERNEL_SIZE = 3
+        # self.MORPH_OPEN_ITER = 1
+        # self.MORPH_CLOSE_ITER = 1
 
-        self.COLOR_RANGES = {
-            "red": [
-                ((0, 70, 70), (10, 255, 255)),
-                ((170, 70, 70), (179, 255, 255))
-            ],
-            "blue": [
-                ((90, 100, 80), (110, 255, 255))
-            ],
-            "green": [
-                ((35, 100, 125), (85, 255, 255))
-            ]
-        }
+        # self.COLOR_RANGES = {
+        #     "red": [
+        #         ((0, 70, 70), (10, 255, 255)),
+        #         ((170, 70, 70), (179, 255, 255))
+        #     ],
+        #     "blue": [
+        #         ((90, 100, 80), (110, 255, 255))
+        #     ],
+        #     "green": [
+        #         ((35, 100, 125), (85, 255, 255))
+        #     ]
+        # }
 
-        self.COLOR_BRG_DRAW = {
-            "red": (0, 0, 255),
-            "blue": (255, 0, 0),
-            "green": (0, 255, 0)
-        }
+        # self.COLOR_BRG_DRAW = {
+        #     "red": (0, 0, 255),
+        #     "blue": (255, 0, 0),
+        #     "green": (0, 255, 0)
+        # }
 
-        self.WAIT_SEC = 3.0
-        self.ANGLE_WINDOW = 15
-        self.MOVE_SPEED = 30
-        self.APPROACH_Z = 243
-        self.GRIPPER_OPEN_VAL = 150
-        self.GRIPPER_CLOSE_VAL = 10
-        self.GRIPPER_SPEED = 20
-        # ===============================
+        # self.WAIT_SEC = 3.0
+        # self.ANGLE_WINDOW = 15
+        # self.MOVE_SPEED = 30
+        # self.APPROACH_Z = 243
+        # self.GRIPPER_OPEN_VAL = 150
+        # self.GRIPPER_CLOSE_VAL = 10
+        # self.GRIPPER_SPEED = 20
+        # # ===============================
 
         # 상태
         self.angles_buf = deque(maxlen=self.ANGLE_WINDOW)

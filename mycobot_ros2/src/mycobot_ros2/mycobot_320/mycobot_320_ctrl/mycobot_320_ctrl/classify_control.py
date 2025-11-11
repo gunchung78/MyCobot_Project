@@ -8,9 +8,10 @@ from rclpy.node import Node
 from std_msgs.msg import Int32
 from std_msgs.msg import Float32MultiArray
 from sensor_msgs.msg import JointState
-from mycobot_interfaces.srv import SetAngles
+from mycobot_interfaces.srv import SetAngles, SetCoords
 from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
+from mycobot_320_ctrl.src.config_loader import load_config 
 
 JOINT_LIMITS = [170.0, 160.0, 160.0, 170.0, 170.0, 175.0]
 
@@ -21,8 +22,9 @@ class ClassifyControl(Node):
 
         # --- 서비스 클라이언트 ---
         self.client_angles = self.create_client(SetAngles, 'set_angles')
-        while not self.client_angles.wait_for_service(timeout_sec=2.0):
-            self.get_logger().info('⏳ Waiting for /set_angles service...')
+        self.client_coords = self.create_client(SetCoords, 'set_coords')
+        while not self.client_angles.wait_for_service(timeout_sec=2.0) or not self.client_coords.wait_for_service(timeout_sec=2.0):
+            self.get_logger().info('⏳ Waiting for /set_angles or /set_coords service...')
 
         # --- 상태 변수 ---
         self._lock = threading.Lock()
@@ -105,30 +107,6 @@ class ClassifyControl(Node):
     # 🟢 분류 결과 콜백
     def _on_classify(self, msg: Int32):
         self.label = int(msg.data)
-        # if self.is_busy:
-        #     self.get_logger().warn('⛔ Sequence busy, ignoring trigger.')
-        #     return
-
-        # # 🔧 핵심: 길게 도는 시퀀스는 별도 스레드에서 실행
-        # def _runner(seq):
-        #     try:
-        #         self.is_busy = True
-        #         self._exec_sequence(seq)
-        #         self.get_logger().info('🏠 Returning Home...')
-        #         self.move_joint(self.home_pose)
-        #     except Exception:
-        #         self.get_logger().error(traceback.format_exc())
-        #     finally:
-        #         self.is_busy = False
-
-        # if label == 0:
-        #     self.get_logger().info('📦 GOOD → running good_sequence')
-        #     threading.Thread(target=_runner, args=(self.good_sequence,), daemon=True).start()
-        # elif label == 1:
-        #     self.get_logger().info('⚠️ BAD → running bad_sequence')
-        #     threading.Thread(target=_runner, args=(self.bad_sequence,), daemon=True).start()
-        # else:
-        #     self.get_logger().warn(f'❓ Unknown label: {label}')
 
     # =========================================================
     # 🟢 detector 결과 콜백
@@ -251,7 +229,7 @@ def main(args=None):
     rclpy.init(args=args)
     node = ClassifyControl()
     try:
-        execu = MultiThreadedExecutor(num_threads=2)  # 🔧 최소 2스레드
+        execu = MultiThreadedExecutor(num_threads=1)  # 🔧 최소 2스레드
         execu.add_node(node)
         execu.spin()
     except (KeyboardInterrupt, ExternalShutdownException):
@@ -259,7 +237,6 @@ def main(args=None):
     except Exception:
         node.get_logger().error(traceback.format_exc())
     finally:
-        print(node.label)
         node.destroy_node()
         rclpy.shutdown()
 
