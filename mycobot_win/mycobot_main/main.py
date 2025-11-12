@@ -82,12 +82,12 @@ def main():
                 print(f"[INFO] 감지 색상: {color}, YOLO 판정: {detected_type}")
 
                 try:
-                    if args.mode == 1 and  (color ==  "white" or color is None ):
+                    if args.mode == 1 and (color == "white" or color is None ):
                        print(f'no color {color}')
-                       r.refresh_home();
+                       r.refresh_home()
                     elif args.mode == 0 and (detected_type ==  "unknown" or detected_type is None): 
                        print(f'no detected_type {detected_type}')
-                       r.refresh_home();
+                       r.refresh_home()
 
                     else:
                         # 접근(상부)

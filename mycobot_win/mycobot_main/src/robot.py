@@ -139,7 +139,7 @@ class Robot:
                 # 놓기
                 self.mc.set_gripper_value(40, 20, 1)
                 # 이탈 자세
-                self.move_and_wait("angles", [-22.23, 0, 78.95, -21, -87.36, -15])
+                self.move_and_wait("angles", [-22.23, 0, 78.95, -21, -87.36, -15]) 
 
             elif val == 'blue':
                 z = z + 170

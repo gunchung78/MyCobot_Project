@@ -142,7 +142,7 @@ class MyCobotDriver(Node):
             self.pub_angles_f32.publish(msg_ang)
 
             # ---- 추가2: coords 토픽 ----
-            if isinstance(coords, list) and len(coords) == 6 and all(c != -1 for c in coords):
+            if isinstance(coords, list) and len(coords) == 6:
                 msg_xyzrpy = Float32MultiArray()
                 # 필요 시 mm→m, deg→rad 변환 가능하나, 요청대로 원형 그대로 발행
                 msg_xyzrpy.data = [float(c) for c in coords]  # [x,y,z,rx,ry,rz]

@@ -28,12 +28,13 @@ class ClassifyControl(Node):
 
         # --- 상태 변수 ---
         self._lock = threading.Lock()
-        self.current_angles_rad = None
+        self.current_angles = None
         self.current_stamp = None
-        self.target_angles_rad = None
+        self.target_angles = None
         self.reached_event = threading.Event()
         self.coords_xyzrpy = None     # [x,y,z,rx,ry,rz]
         self.angles_deg = None        # [j1..j6] in degree
+        self.angles_rad = None
 
         # --- QoS 설정 ---
         qos_profile = QoSProfile(
@@ -72,19 +73,18 @@ class ClassifyControl(Node):
 
         # --- 시퀀스 ---
         self.home_pose = [0, 0, 0, 0, 0, 0]
-        self.good_sequence = [
+        self.angles_sequence = [
             [0, 0, 0, 0, 0, 0],
             [10, -20, 30, 0, 0, 0],
             [20, -40, 50, 0, 0, 0],
             [20, -30, 40, 0, 0, 0],
             [30, 10, 20, 0, 0, 0],
         ]
-        self.bad_sequence = [
-            [0, 0, 0, 0, 0, 0],
-            [-10, -20, 30, 0, 0, 0],
-            [-20, -40, 50, 0, 0, 0],
-            [-20, -30, 40, 0, 0, 0],
-            [-30, 10, 20, 0, 0, 0],
+        self.coords_sequence = [
+            [192.0, 0.0, 300.0, -180.0, 0, 0],
+            [192.0, 0.0, 250.0, -180.0, 0, 0],
+            [192.0, 0.0, 300.0, -180.0, 0, 0],
+            [192.0, 0.0, 250.0, -180.0, 0, 0],
         ]
 
         # --- 모니터 스레드 ---
@@ -103,17 +103,43 @@ class ClassifyControl(Node):
     # =========================================================
     # 🟢 joint_states 콜백
     def _on_joint_state(self, msg: JointState):
-        with self._lock:
-            self.current_angles_rad = list(msg.position)
-            # 🟩 수정: stamp가 비정상일 때 현재 시간으로 대체
-            if msg.header.stamp.sec == 0 and msg.header.stamp.nanosec == 0:
-                msg.header.stamp = self.get_clock().now().to_msg()
-            self.current_stamp = msg.header.stamp
+        if len(msg.position) == 6:
+            with self._lock:
+                self.angles_rad = [float(v) for v in msg.position]
+                if msg.header.stamp.sec == 0 and msg.header.stamp.nanosec == 0:
+                    msg.header.stamp = self.get_clock().now().to_msg()
+                self.current_stamp = msg.header.stamp
+        else:
+            self.get_logger().warn(f"/joint_states len={len(msg.position)} (expect 6)")
 
     # =========================================================
     # 🟢 분류 결과 콜백
     def _on_classify(self, msg: Int32):
         self.label = int(msg.data)
+        if self.is_busy:
+            self.get_logger().warn('⛔ Sequence busy, ignoring trigger.')
+            return
+
+        # 🔧 핵심: 길게 도는 시퀀스는 별도 스레드에서 실행
+        def _runner(seq):
+            try:
+                self.is_busy = True
+                self._exec_sequence(seq)
+                self.get_logger().info('🏠 Returning Home...')
+                self.move_joint(self.home_pose)
+            except Exception:
+                self.get_logger().error(traceback.format_exc())
+            finally:
+                self.is_busy = False
+
+        if self.label == 0:
+            self.get_logger().info('running angles_sequence ')
+            threading.Thread(target=_runner, args=(self.angles_sequence,), daemon=True).start()
+        elif self.label == 1:
+            self.get_logger().info('running coords_sequence ')
+            threading.Thread(target=_runner, args=(self.coords_sequence,), daemon=True).start()
+        else:
+            self.get_logger().warn(f'❓ Unknown label: {self.label}')
 
     # =========================================================
     # 🟢 detector 결과 콜백
@@ -144,13 +170,12 @@ class ClassifyControl(Node):
         else:
             self.get_logger().warn(f"/mycobot/coords len={len(msg.data)} (expect 6)")
 
-    def _on_angles_deg(self, msg: Float32MultiArray):
+    def _on_angles(self, msg: Float32MultiArray):
         if len(msg.data) == 6:
             with self._lock:
-                self.angles_deg = [float(v) for v in msg.data]
-            # self.get_logger().info(f"angles_deg: {self.angles_deg}")
+                self.current_angles = [float(v) for v in msg.data]
         else:
-            self.get_logger().warn(f"/mycobot/angles_deg len={len(msg.data)} (expect 6)")
+            self.get_logger().warn(f"/mycobot/angles len={len(msg.data)} (expect 6)")
 
 
     # =========================================================
@@ -159,7 +184,7 @@ class ClassifyControl(Node):
         t0 = time.time()
         while time.time() - t0 < timeout:
             with self._lock:
-                ok = self.current_angles_rad is not None
+                ok = self.current_angles is not None
             if ok:
                 return True
             time.sleep(0.02)
@@ -187,7 +212,7 @@ class ClassifyControl(Node):
     def move_joint(self, target_deg):
         target_rad = [math.radians(v) for v in target_deg]
         with self._lock:
-            self.target_angles_rad = target_rad[:]
+            self.target_angles = target_rad[:]
         self.reached_event.clear()
 
         if not self._send_set_angles(target_deg):
@@ -210,8 +235,8 @@ class ClassifyControl(Node):
         while self._run:
             time.sleep(self.check_period)
             with self._lock:
-                cur = None if self.current_angles_rad is None else self.current_angles_rad[:]
-                tgt = None if self.target_angles_rad is None else self.target_angles_rad[:]
+                cur = None if self.current_angles is None else self.current_angles[:]
+                tgt = None if self.target_angles is None else self.target_angles[:]
                 stamp = self.current_stamp
             if cur is None or tgt is None:
                 ok_count = 0
