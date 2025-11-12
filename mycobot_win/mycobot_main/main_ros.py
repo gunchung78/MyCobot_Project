@@ -89,7 +89,7 @@ def main():
                         print("graps")
                     else:
                         r.move_and_wait(step[0],step[1],C.MOVE_SPEED)
-            
+                print(out)
             key = cv2.waitKey(3) & 0xFF
             if key == 27:  # ESC
                 break

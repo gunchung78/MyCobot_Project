@@ -15,7 +15,7 @@ from mycobot_interfaces.srv import SetAngles, SetCoords, GripperStatus, GetCoord
 
 # === 네 환경에 맞게 경로 수정 ===
 from mycobot_320_ctrl.src.config_loader import load_config            # ../config.json 로드
-from mycobot_320_ctrl.src.ros_robot import ROS_Robot                   # ROS_Robot 클래스
+from mycobot_320_ctrl.src.ros_robot import ROS_Robot          # <<< ROS_Robot 클래스를 제공하는 실제 모듈로 교체
 import threading, queue
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
@@ -31,6 +31,7 @@ COORD_LIMITS = {
 DEFAULT_SPEED = 30
 DEFAULT_MODEL = 0  # 드라이버 기본(참고용)
 
+
 def map_color(code: float) -> Optional[str]:
     # 0=red, 1=blue, 2=green
     iv = int(round(code))
@@ -41,6 +42,7 @@ def map_detected(code: float) -> Optional[str]:
     iv = int(round(code))
     return {0: 'normal', 1: 'anomaly'}.get(iv, None)
 
+
 class ClassifyControl(Node):
     """
     /classify_input(Float32MultiArray): [x_t, y_t, rz_t, color_code, detected_code]
@@ -49,9 +51,9 @@ class ClassifyControl(Node):
 
     def __init__(self):
         super().__init__('classify_control')
-
+        
         qos = QoSProfile(history=HistoryPolicy.KEEP_LAST, depth=1,
-                         reliability=ReliabilityPolicy.RELIABLE)  # 기본: KeepLast(10)인데 1로 축소. :contentReference[oaicite:3]{index=3}
+                 reliability=ReliabilityPolicy.RELIABLE)
 
         # --- 서비스 클라이언트 ---
         self.cli_angles  = self.create_client(SetAngles,  '/set_angles')
@@ -62,8 +64,6 @@ class ClassifyControl(Node):
 
         self._q = queue.Queue()
         self._stop = False
-        self._busy = False                  # 👉 실행 중 플래그
-
         self._worker = threading.Thread(target=self._worker_loop, daemon=True)
         self._worker.start()
 
@@ -88,6 +88,8 @@ class ClassifyControl(Node):
         self._detected_type: Optional[str] = None
         self.plan = []
 
+        self._busy = False
+
         # 설정 로드
         try:
             self.C = load_config("../config.json")
@@ -100,11 +102,6 @@ class ClassifyControl(Node):
     # ========== Subscriber ==========
     def _cb_input(self, msg: Float32MultiArray):
         try:
-            # 👉 실행 중엔 즉시 드랍 (“실행중에 보내면 2번 작동” 방지)
-            if self._busy:
-                self.get_logger().warn("busy: drop incoming /classify_input")
-                return
-
             data = list(msg.data)
             if len(data) < 5:
                 self.get_logger().warn(f"/classify_input length<5: {data}")
@@ -138,17 +135,14 @@ class ClassifyControl(Node):
         if not self._ready():
             return
 
-        # 👉 이미 실행 중이거나 큐에 작업이 있으면 드랍(필요 시 정책 조정)
-        if self._busy:
-            self.get_logger().warn("enqueue skipped: busy")
-            return
-        if self._q.qsize() >= 1:
-            self.get_logger().warn("enqueue skipped: queue has pending job")
+        # 중복 폭주를 막고 싶으면 큐 길이 상한을 둡니다(예: 2)
+        if self._q.qsize() >= 2:
+            self.get_logger().warn("enqueue skipped: queue full")
             return
 
         self.get_logger().info("🔶 Inputs ready. Building plan via ROS_Robot...")
         try:
-            mode = 1  # 또는 self._select_mode()
+            mode = 1
             bot = ROS_Robot(mode, self.C, self._x_t, self._y_t, self._rz_t,
                             self._color, self._detected_type)
             plan = bot.main_fow() or []
@@ -156,16 +150,15 @@ class ClassifyControl(Node):
                 self.get_logger().warn("빈 plan 생성 → 실행 생략")
                 return
 
-            # ✅ 실행은 워커에게 맡기기: enqueue + busy ON
-            self._busy = True                   # 👉 여기서 Busy ON
+            # ✅ 실행은 여기서 하지 말고 큐에 넣기
             self._q.put(plan)
             self.get_logger().info(f"▶ plan enqueued (len={len(plan)})")
         except Exception:
             self.get_logger().error("build plan error:\n" + traceback.format_exc())
 
+
     # ========== Call wrappers ==========
     def _spin_until(self, future, timeout_sec=15.0) -> bool:
-        # 👉 워커 스레드에서 spin 호출 금지. future.done() 폴링만.
         import time
         deadline = time.time() + timeout_sec
         while rclpy.ok() and not future.done():
@@ -255,12 +248,11 @@ class ClassifyControl(Node):
                 self.get_logger().error(f"[{idx}] exception:\n" + traceback.format_exc())
                 return False
         return True
-
+    
     def _worker_loop(self):
         while not self._stop:
             plan = self._q.get()
             try:
-                self.get_logger().info("🏁 worker picked a plan")
                 ok = self._run_plan(plan)
                 if not ok:
                     self.get_logger().error("plan failed")
@@ -269,8 +261,8 @@ class ClassifyControl(Node):
             except Exception as e:
                 self.get_logger().error(f"worker exception: {e}")
             finally:
-                self._busy = False            # 👉 실행 끝: Busy OFF
                 self._q.task_done()
+
 
 def main(args=None):
     rclpy.init(args=args)
@@ -284,6 +276,7 @@ def main(args=None):
     finally:
         node.destroy_node()
         rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()

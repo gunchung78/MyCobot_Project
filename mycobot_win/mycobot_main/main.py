@@ -80,6 +80,7 @@ def main():
                 rz_t = result["rz_t"] if result["rz_t"] is not None else C.ANCHOR_PY[5]
                 color = result["color"]
                 print(f"[INFO] 감지 색상: {color}, YOLO 판정: {detected_type}")
+                print(x_t, y_t, rz_t, color, detected_type)
 
                 try:
                     if args.mode == 1 and (color == "white" or color is None ):
@@ -88,7 +89,7 @@ def main():
                     elif args.mode == 0 and (detected_type ==  "unknown" or detected_type is None): 
                        print(f'no detected_type {detected_type}')
                        r.refresh_home()
-
+                        
                     else:
                         # 접근(상부)
                         # r.move_coords([x_t, y_t, C.ANCHOR_PY[2]+30, C.ANCHOR_PY[3], C.ANCHOR_PY[4], rz_t], C.MOVE_SPEED, 0, sleep=0.5)

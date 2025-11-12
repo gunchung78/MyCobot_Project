@@ -54,7 +54,7 @@ class Robot:
             except Exception: pass
             try: self.mc.set_gripper_mode(0)
             except Exception: pass
-            try: self.mc.init_electric_gripper()
+            try: self.mc.init_electric_gripper(0)
             except Exception: pass
             try: self.mc.set_electric_gripper(0)
             except Exception: pass
