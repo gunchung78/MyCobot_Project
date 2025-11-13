@@ -11,13 +11,11 @@ from rclpy.node import Node
 from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
-
 from std_msgs.msg import Float32MultiArray, Int32
 from mycobot_interfaces.srv import SetAngles, SetCoords, GripperStatus, GetCoords, GetAngles
 
-# === 네 환경에 맞게 경로 수정 ===
-from mycobot_320_ctrl.src.config_loader import load_config            # ../config.json 로드
-from mycobot_320_ctrl.src.ros_robot import ROS_Robot                   # ROS_Robot 클래스
+from mycobot_320_ctrl.src.config_loader import load_config           
+from mycobot_320_ctrl.src.ros_robot import ROS_Robot                  
 
 COORD_LIMITS = {
     'x':  (-350, 350),
@@ -32,7 +30,7 @@ DEFAULT_SPEED = 30
 DEFAULT_MODEL = 0  # 드라이버 기본(참고용)
 
 def map_color(code: float) -> Optional[str]:
-    # 0=red, 1=blue, 2=green  (detector.py의 color_map과 호환 주의!)
+    # 1=red, 2=blue, 3=green, 그 외 None (detector.py의 color_map과 호환 주의!)
     iv = int(round(code))
     return {1: 'red', 2: 'blue', 3: 'green', 0: None}.get(iv, None)
 
@@ -109,13 +107,15 @@ class ClassifyControl(Node):
         try:
             self.C = load_config("../config.json")
         except Exception:
-            self.get_logger().warn("load_config('../config.json') 실패 → 'config.json' 재시도")
+            self.get_logger().warning("load_config('../config.json') 실패 → 'config.json' 재시도")
             self.C = load_config("config.json")
 
         self.get_logger().info("ClassifyControl ready. Waiting /detector_result & /classify_result ...")
 
         # (옵션) 초기 앵커 자세로 이동
         self._call_angles([0.0, 0.0, -80.0, 0.0, 90.0, -90.0])
+
+        self._bot = ROS_Robot(self._detect_mode, self.C)
 
     # ========== Subscribers ==========
     def _cb_classify(self, msg: Int32):
@@ -131,7 +131,7 @@ class ClassifyControl(Node):
 
             data = list(msg.data)
             if len(data) < 5:
-                self.get_logger().warn(f"/detector_result length<5: {data}")
+                self.get_logger().warning(f"/detector_result length<5: {data}")
                 return
 
             x_t, y_t, rz_t, color_code, detected_code = map(float, data[:5])
@@ -170,20 +170,22 @@ class ClassifyControl(Node):
             return
         # 이미 실행 중이거나 큐에 작업 있으면 드랍(필요 시 정책 조정)
         if self._busy:
-            self.get_logger().warn("enqueue skipped: busy")
+            self.get_logger().warning("enqueue skipped: busy")
             return
         if self._q.qsize() >= 1:
-            self.get_logger().warn("enqueue skipped: queue has pending job")
+            self.get_logger().warning("enqueue skipped: queue has pending job")
             return
 
         self.get_logger().info("🔶 Inputs ready. Building plan via ROS_Robot...")
         try:
-            mode = self._detect_mode # 설정한 detect_mode 값 입력
-            bot = ROS_Robot(mode, self.C, self._x_t, self._y_t, self._rz_t,
-                            self._color, self._detected_type)
-            plan = bot.main_fow() or []
+            rz = self._rz_t
+            if rz is not None and abs(rz) < 1e-6:
+                rz = None
+
+            plan = self._bot.main_fow(self._x_t, self._y_t, rz,
+                            self._color, self._detected_type) or []
             if not plan:
-                self.get_logger().warn("빈 plan 생성 → 실행 생략")
+                self.get_logger().warning("빈 plan 생성 → 실행 생략")
                 return
 
             # 실행은 워커에게 맡김
