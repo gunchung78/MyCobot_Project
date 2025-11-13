@@ -85,7 +85,14 @@
 
 ## 5) 실행 예시
 
-ros2 launch mycobot_320 simple_gui.launch.py
+colcon build --packages-select mycobot_320_vision mycobot_320_ctrl mycobot_320
+
+기본 : ros2 launch mycobot_320 simple_gui.launch.py
+
+mission 1 : ros2 launch mycobot_320_ctrl classify_control.launch.py detect_mode:=detect_and_classify start_vision:=true
+
+mission 2 : ros2 launch mycobot_320_ctrl classify_control.launch.py detect_mode:=detect_only start_vision:=true
+
 ---
 
 
