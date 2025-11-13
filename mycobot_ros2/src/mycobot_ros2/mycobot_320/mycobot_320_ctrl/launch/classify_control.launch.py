@@ -49,7 +49,7 @@ def generate_launch_description():
         executable='classify_control',
         name='classify_control',
         output='screen',
-        parameters=[{'test_mode': test_mode}]
+        parameters=[{'detect_mode': detect_mode}] ## 이 parameters를 detect_mode로 변경
     )
 
     # ✅ Vision(detector) 노드 (옵션)

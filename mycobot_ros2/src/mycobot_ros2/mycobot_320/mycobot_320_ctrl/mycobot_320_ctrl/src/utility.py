@@ -1,5 +1,4 @@
 import numpy as np
-from pymycobot.mycobot320 import MyCobot320
 
 # =========================
 # 유틸

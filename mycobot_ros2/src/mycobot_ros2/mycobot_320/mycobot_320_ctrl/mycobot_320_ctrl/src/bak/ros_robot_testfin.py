@@ -3,20 +3,15 @@ from typing import List, Sequence, Optional
 
 
 class ROS_Robot:
-    def __init__(self, mode, C, x_t, y_t, rz_t, color, detected_type):
+    def __init__(self, mode, C):
         self.move_speed = int(C.MOVE_SPEED)
         self.gr_open = int(C.GRIPPER_OPEN_VAL)
         self.gr_close = int(C.GRIPPER_CLOSE_VAL)
         self.gr_speed = int(C.GRIPPER_SPEED)
         self.ANCHOR_PY = list(C.ANCHOR_PY)
-        self.x_t = x_t
-        self.y_t = y_t
-        self.rz_t = rz_t
-        self.color = color
-        self.detected_type = detected_type
         self.mode = mode
         self.result = []
-        self.placeList = []
+        self.placeList= [0,0,0]
 
     def move_and_wait(self, mode: str, value: Sequence[float], speed: Optional[int]=None,
                     delay: float=0.5, poll_sec: float=0.1):
@@ -90,7 +85,7 @@ class ROS_Robot:
                 self.gripper_open()
                 self.move_and_wait("angles", [12.12, 0, 70.83, -16.08, -67.5, -150])
 
-            elif val in ('red'):
+            elif val == 'red':
                 z = z + 160
                 self.move_and_wait("angles", [136.66, 0, -55.98, 0, 109.51, -30])
                 self.move_and_wait("coords", [-180, 240, z, -173.15, 0, 90], speed=10, delay=1.0)
@@ -98,7 +93,7 @@ class ROS_Robot:
                 self.gripper_open()
                 self.move_and_wait("angles", [136.66, 0, -55.98, 0, 109.51, -30])
 
-            elif val in ('anomaly'):
+            elif val == 'anomaly':
                 self.move_and_wait("angles", [-80, -20, -65, -0, 90, -90])
                 # self.mc.set_gripper_value(40, 20, 1)
                 self.gripper_open()
@@ -117,7 +112,6 @@ class ROS_Robot:
         try:
             # 웨이포인트 먼저 이동
             self.move_and_wait("angles", [-6.94, 6.24, -55.19, -18.19, 81.03, -93.25], speed, delay)
-            """앵커 좌표로 복귀"""
             self.move_and_wait("angles", [0, 0, -80, -0, 90, -90], speed, delay)
         except Exception as e:
             print(f"[WARN] go_anchor 실패: {e}")
@@ -125,24 +119,25 @@ class ROS_Robot:
     def refresh_home(self, speed=20, delay=0.2):
         try:
             self.move_and_wait("angles", [0, 10, -80, -0, 90, -90], speed, delay)
-            """앵커 좌표로 복귀"""
             self.move_and_wait("angles", [0, 0, -80, -0, 90, -90], speed, delay)
         except Exception as e:
             print(f"[WARN] go_anchor 실패: {e}")
 
-    def main_fow(self,):
-        self.power_on()
-        self.gripper_open()
-        self.placeList=[0,0,0]
-
+    def main_fow(self, x_t, y_t, rz_t, color, detected_type):
+        self.result.clear()
+        if rz_t is None:
+            rz_t = self.ANCHOR_PY[5]
         try:
-            if self.mode == "detect_only" and (self.color == "white" or self.color is None ):
-                print(f'no color {self.color}')
+            if self.mode == "detect_only" and (color == "white" or color is None ):
+                print(f'no color {color}')
                 self.refresh_home()
-            elif self.mode == "detect_and_classify" and (self.detected_type ==  "unknown" or self.detected_type is None): 
-                print(f'no detected_type {self.detected_type}')
+                return list(self.result)
+            
+            elif self.mode == "detect_and_classify" and (detected_type ==  "unknown" or detected_type is None): 
+                print(f'no detected_type {detected_type}')
                 self.refresh_home()
-
+                return list(self.result)
+            
             else:
                 # 접근(상부)
                 # r.move_coords([x_t, y_t, C.ANCHOR_PY[2]+30, C.ANCHOR_PY[3], C.ANCHOR_PY[4], rz_t], C.MOVE_SPEED, 0, sleep=0.5)
@@ -151,7 +146,7 @@ class ROS_Robot:
                 # r.move_coords([x_t, y_t, C.APPROACH_Z, C.ANCHOR_PY[3], C.ANCHOR_PY[4], rz_t], C.MOVE_SPEED, 0, sleep=0.5)
                 self.move_and_wait(
                     "coords",
-                    [self.x_t, self.y_t, self.ANCHOR_PY[2], self.ANCHOR_PY[3], self.ANCHOR_PY[4], self.rz_t],
+                    [x_t, y_t, self.ANCHOR_PY[2], self.ANCHOR_PY[3], self.ANCHOR_PY[4], rz_t],
                     self.move_speed,
                     0
                 )
@@ -164,34 +159,32 @@ class ROS_Robot:
                 # [변경된 분류 로직]
                 # 색상 + YOLO 결과 모두 고려
                 if self.mode == "detect_only":
-                    if self.color == "red":
+                    if color == "red":
                         print("[ACTION] red 감지")
                         self.place_box("red", self.placeList[0])
                         self.placeList[0] += 1
-                    elif self.color == "green":
+                    elif color == "green":
                         print("[ACTION] green 감지")
                         self.place_box("green", self.placeList[2])
                         self.placeList[2] += 1
-                    elif self.color == "blue":
+                    elif color == "blue":
                         print("[ACTION] blue 감지")
                         self.place_box("blue", self.placeList[1])
                         self.placeList[1] += 1
                 elif self.mode == "detect_and_classify": 
                     # 추가로 YOLO 결과에 따라 색상 불분명시 대체 동작 수행
-                    if self.detected_type == "anomaly":
+                    if detected_type == "anomaly":
                         print("[ACTION] YOLO anomaly 판정")
                         self.place_box("anomaly")
-                    elif self.detected_type == "normal":
+                    elif detected_type == "normal":
                         print("[ACTION] YOLO normal 판정")
                         self.place_box("normal", self.placeList[2])
                         self.placeList[2] += 1
                     else:
                         print("[WARN] 색상 및 YOLO 판정 불명 → 동작 생략")
-            return self.result
+            return list(self.result)
         except Exception as e:
             print(f"[ERROR] 로봇 명령 실패: {e}")
-
-        return self.result
 
 # ===== 여기부터 테스트 실행용 main (기존 코드 변경 없음) =====
 if __name__ == "__main__":
@@ -199,20 +192,18 @@ if __name__ == "__main__":
     C = load_config("../config.json")
 
     # 샘플 입력값
-    mode = 1                 # 1: color 기반, 0: yolo 기반
+    mode = "detect_only"                 # 1: color 기반, 0: yolo 기반
     x_t, y_t, rz_t = -230.0, -50.0, 0.0
     color = "green"
     detected_type = "normal"
 
     # 인스턴스 생성
-    bot = ROS_Robot(mode, C, x_t, y_t, rz_t, color, detected_type)
-
+    bot = ROS_Robot(mode, C)
+    print("\n=== Test Result * 3 ===")
+    for i in range(3):
     # 메인 플로우 실행
-    out = bot.main_fow()
-
-    # 결과 출력
-    print("\n=== Test Result ===")
-    for step in out:
-        print(step)
-
-    print(out)
+        out = bot.main_fow(x_t, y_t, rz_t, color, detected_type)
+        # 결과 출력
+        print(i)
+        for step in out:
+            print(step)
