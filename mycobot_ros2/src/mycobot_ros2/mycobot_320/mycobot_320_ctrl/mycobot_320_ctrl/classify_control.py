@@ -27,7 +27,7 @@ COORD_LIMITS = {
 }
 
 DEFAULT_SPEED = 30
-DEFAULT_MODEL = 0  # 드라이버 기본(참고용)
+DEFAULT_MODEL = 0
 
 def map_color(code: float) -> Optional[str]:
     # 1=red, 2=blue, 3=green, 그 외 None (detector.py의 color_map과 호환 주의!)
@@ -53,7 +53,7 @@ class ClassifyControl(Node):
         self.declare_parameter('detect_mode', 'detect_only')
         self._detect_mode = self.get_parameter('detect_mode').get_parameter_value().string_value
         
-        # QoS: 퍼블리셔와 동일하게 최대한 간결하게(깊이 1, RELIABLE)
+        # --- QoS (depth=1, RELIABLE) ---
         qos = QoSProfile(
             history=HistoryPolicy.KEEP_LAST,
             depth=1,
@@ -63,25 +63,25 @@ class ClassifyControl(Node):
         # --- 서비스 클라이언트 ---
         self.cli_angles  = self.create_client(SetAngles,  '/set_angles')
         self.cli_coords  = self.create_client(SetCoords,  '/set_coords')
-        self.cli_gripper = self.create_client(GripperStatus, '/set_gripper')
         self.cli_get_c   = self.create_client(GetCoords,  '/get_coords')
         self.cli_get_a   = self.create_client(GetAngles,  '/get_angles')
+        self.cli_gripper = self.create_client(GripperStatus, '/set_gripper')
 
-        # 워커(서비스 호출 전담) 큐/스레드
+        # --- 큐/스레드 ---
         self._q = queue.Queue()
-        self._stop = False
-        self._busy = False                   # 실행 중이면 True
         self._mtx = threading.Lock()         # 분류 결과/입력 상태 보호용
-
+        self._busy = False                   # 실행 중이면 True
+        self._stop = False
+        
         self._worker = threading.Thread(target=self._worker_loop, daemon=True)
         self._worker.start()
 
-        # 서비스 준비 대기
-        for cli, name in [(self.cli_angles,'/set_angles'),
-                          (self.cli_coords,'/set_coords'),
-                          (self.cli_gripper,'/set_gripper'),
-                          (self.cli_get_c,'/get_coords'),
-                          (self.cli_get_a,'/get_angles')]:
+        # --- 서비스 준비 대기 ---
+        for cli, name in [(self.cli_angles, '/set_angles'),
+                          (self.cli_coords, '/set_coords'),
+                          (self.cli_get_c,  '/get_coords'),
+                          (self.cli_get_a,  '/get_angles'),
+                          (self.cli_gripper,'/set_gripper')]:
             while not cli.wait_for_service(timeout_sec=1.0):
                 self.get_logger().info(f'⏳ waiting for {name} ...')
 
@@ -90,20 +90,21 @@ class ClassifyControl(Node):
         self.sub_det = self.create_subscription(
             Float32MultiArray, '/detector_result', self._cb_input, qos
         )
+
         # 2) YOLO 분류 결과: Int32 (0 normal, 1 anomaly, 그 외 unknown)
         self.classify_result: int = -1  # 최신 값을 캐시
         self.sub_cls = self.create_subscription(
             Int32, '/classify_result', self._cb_classify, qos
         )
 
-        # 최신 입력
+        # --- 변수선언 ---
         self._x_t: Optional[float] = None
         self._y_t: Optional[float] = None
         self._rz_t: Optional[float] = None
         self._color: Optional[str] = None
         self._detected_type: Optional[str] = None
 
-        # 설정 로드
+        # --- 설정 로드 ---
         try:
             self.C = load_config("../config.json")
         except Exception:
@@ -112,10 +113,10 @@ class ClassifyControl(Node):
 
         self.get_logger().info("ClassifyControl ready. Waiting /detector_result & /classify_result ...")
 
-        # (옵션) 초기 앵커 자세로 이동
-        self._call_angles([0.0, 0.0, -80.0, 0.0, 90.0, -90.0])
-
+        # --- 로봇 설정 ---
         self._bot = ROS_Robot(self._detect_mode, self.C)
+        self._call_angles([0.0, 0.0, -80.0, 0.0, 90.0, -90.0])
+        
 
     # ========== Subscribers ==========
     def _cb_classify(self, msg: Int32):
@@ -165,9 +166,11 @@ class ClassifyControl(Node):
                 self._rz_t is not None and
                 (self._color is not None or self._detected_type is not None))
 
+    # ========== Main ==========
     def _try_run_once(self):
         if not self._ready():
             return
+        
         # 이미 실행 중이거나 큐에 작업 있으면 드랍(필요 시 정책 조정)
         if self._busy:
             self.get_logger().warning("enqueue skipped: busy")
@@ -175,7 +178,6 @@ class ClassifyControl(Node):
         if self._q.qsize() >= 1:
             self.get_logger().warning("enqueue skipped: queue has pending job")
             return
-
         self.get_logger().info("🔶 Inputs ready. Building plan via ROS_Robot...")
         try:
             rz = self._rz_t
