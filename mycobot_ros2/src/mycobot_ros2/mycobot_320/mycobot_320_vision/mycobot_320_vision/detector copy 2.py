@@ -11,7 +11,8 @@ from std_msgs.msg import Float32MultiArray, Int32
 from ultralytics import YOLO
 import yaml
 from pathlib import Path
-import mycobot_320_vision.src.utility as util
+
+from mycobot_320_vision.src.utility import util
 from mycobot_320_vision.src.config_loader import load_config 
 from mycobot_320_vision.src.ros_detector import PickTargetDetector
 
@@ -20,6 +21,28 @@ C = load_config("config.json")
 
 def _safe_path(p):
     return Path(p).expanduser().resolve()
+
+# ---------- NEW: 박스 IoU(축정렬 bbox로 근사) ----------
+def _bbox_from_poly(pts4):
+    # pts4: (4,2) np.int32
+    x, y, w, h = cv2.boundingRect(pts4.astype(np.int32))
+    return (x, y, x + w, y + h)  # (x1,y1,x2,y2)
+
+def _iou(b1, b2):
+    x1, y1, x2, y2 = b1
+    X1, Y1, X2, Y2 = b2
+    inter_x1 = max(x1, X1)
+    inter_y1 = max(y1, Y1)
+    inter_x2 = min(x2, X2)
+    inter_y2 = min(y2, Y2)
+    iw = max(0, inter_x2 - inter_x1)
+    ih = max(0, inter_y2 - inter_y1)
+    inter = iw * ih
+    if inter == 0:
+        return 0.0
+    a1 = (x2 - x1) * (y2 - y1)
+    a2 = (X2 - X1) * (Y2 - Y1)
+    return inter / float(a1 + a2 - inter)
 
 class DetectorNode(Node):
     def __init__(self):
@@ -37,7 +60,6 @@ class DetectorNode(Node):
         # YOLO 관련 변수
         self.model = None
         self.class_names = []
-        
         if self.mode == "detect_and_classify":
             # ---------- CHG: 경로 안전화 ----------
             self.yaml_path  = _safe_path(C.YAML_PATH_DIR)
@@ -50,8 +72,6 @@ class DetectorNode(Node):
         # 내부 설정 초기화
         # ===============================
         self.angles_buf = deque(maxlen=C.ANGLE_WINDOW)
-        self.robot_action = False
-        self.has_target = False
 
         # ✅ 카메라 초기화
         self.cap = cv2.VideoCapture(C.CAM_INDEX)
@@ -112,58 +132,161 @@ class DetectorNode(Node):
         ret, frame = self.cap.read()
         if not ret:
             return
+        result = self.detector.process(frame)
+        output = result["overlay"]
 
-        # --- 픽셀→좌표 계산은 PickTargetDetector에게 위임 ---
-        try:
-            result = self.detector.process(frame)
-        except Exception as e:
-            self.get_logger().error(f"process() failed: {e}")
-            return
-        output = result["overlay"]  # detector가 만든 오버레이를 신뢰해서 사용
-
-        # --- (옵션) YOLO 분류: 텍스트만 오버레이 & 별도 토픽 퍼블리시 ---
-        state = -1
-        if self.mode == "detect_and_classify":
-            state = self.classify_frame(frame)
-            msg_state = Int32()
-            msg_state.data = state
-            self.pub_classify.publish(msg_state)
-
-            state_txt = "ANOMALY" if state == 1 else ("NORMAL" if state == 0 else "UNKNOWN")
-            cv2.putText(output, f"STATE: {state_txt}", (self.W - 220, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8,
-                        (0, 200, 255) if state == 1 else (0, 220, 0) if state == 0 else (200, 200, 200),
-                        2)
-
-        # --- 타겟 + 액션 조건이 충족될 때만 퍼블리시 ---
-        self.has_target = result["has_target"]
-        self.robot_action = result["robot_action"]
-        if self.has_target and self.robot_action:
-            x_t = float(result["x_t"])
-            y_t = float(result["y_t"])
-            # rz_t가 None일 수 있으므로 앵커 RZ 대체(기존 의도 유지)
-            rz_t = float(result["rz_t"]) if (result["rz_t"] is not None) else float(C.ANCHOR_PY[5])
-            color = result["color"]
-
-            # 로그용 detected_type 문자열(분류 모드면 state 반영)
-            if self.mode == "detect_and_classify":
-                detected_type = "anomaly" if state == 1 else ("normal" if state == 0 else "unknown")
-            else:
-                detected_type = "unknown"
-
-            # 색상코드 매핑(기존 규격 유지)
-            color_map = {"red": 1.0, "blue": 2.0, "green": 3.0}
-            color_code = color_map.get(color, 0.0)
-
-            msg = Float32MultiArray()
-            msg.data = [x_t, y_t, rz_t, color_code, -1.0]  # detected_code는 -1 유지(설계 그대로)
-            self.pub_result.publish(msg)
-        # else: 조건 미충족이면 퍼블리시 생략 (원한다면 '유휴 메시지' 규격 정의해서 퍼블리시 가능)
-
-        # --- 오버레이 화면 출력 ---
+        # ---- 시각화 처리 ----
         cv2.imshow("Frame", output)
-        cv2.waitKey(1)  # OpenCV GUI 이벤트 루프(필수). 없으면 창 업데이트가 멈출 수 있음. 
 
+        if result["has_target"] and result["robot_action"]:
+            x_t = result["x_t"]
+            y_t = result["y_t"]
+            rz_t = result["rz_t"] if result["rz_t"] is not None else C.ANCHOR_PY[5]
+            color = result["color"]
+        # hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        # overlay = frame.copy()
+
+        # cv2.rectangle(overlay, (self.zx1, self.zy1), (self.zx2, self.zy2),
+        #               tuple(C.PICK_ZONE_COLOR), C.PICK_ZONE_THICK)
+        # cv2.putText(overlay, "PICK ZONE", (self.zx1, max(0, self.zy1 - 8)),
+        #             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
+        # # ---------- NEW: 색상별 최고 후보 모으기 ----------
+        # by_color = {}  # color_name -> candidate dict
+        # for color_name, ranges in C.COLOR_RANGES.items():
+        #     color_mask = np.zeros((self.H, self.W), dtype=np.uint8)
+        #     for (lo, hi) in ranges:
+        #         color_mask |= cv2.inRange(hsv, lo, hi)
+
+        #     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (C.MORPH_KERNEL_SIZE, C.MORPH_KERNEL_SIZE))
+        #     color_mask = cv2.morphologyEx(color_mask, cv2.MORPH_OPEN, kernel, iterations=C.MORPH_OPEN_ITER)
+        #     color_mask = cv2.morphologyEx(color_mask, cv2.MORPH_CLOSE, kernel, iterations=C.MORPH_CLOSE_ITER)
+
+        #     contours, _ = cv2.findContours(color_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        #     if not contours:
+        #         continue
+
+        #     # 가장 큰 컨투어만 사용
+        #     cnt = max(contours, key=cv2.contourArea)
+        #     area = cv2.contourArea(cnt)
+        #     if area < C.MIN_AREA:
+        #         continue
+
+        #     rect = cv2.minAreaRect(cnt)
+        #     box = cv2.boxPoints(rect).astype(np.int32)
+        #     cx, cy = int(rect[0][0]), int(rect[0][1])
+        #     if not point_in_rect(cx, cy, self.pick_zone):
+        #         continue
+
+        #     TL, TR, BR, BL = order_box_pts(box)
+        #     midL = ((TL + BL) * 0.5).astype(int)
+        #     midR = ((TR + BR) * 0.5).astype(int)
+        #     vx = float(midR[0] - midL[0])
+        #     vy = float(midR[1] - midL[1])
+        #     angle_here = math.degrees(math.atan2(vy, vx))
+
+        #     dx = cx - C.PICK_CX
+        #     dy = cy - C.PICK_CY
+        #     dist2 = dx * dx + dy * dy
+
+        #     cand = {
+        #         "color": color_name,
+        #         "box": box,
+        #         "center": (cx, cy),
+        #         "angle_img": angle_here,
+        #         "dist2": dist2
+        #     }
+        #     by_color[color_name] = cand
+
+        # if not by_color:
+        #     cv2.imshow("Detector", overlay)
+        #     cv2.waitKey(1)
+        #     return
+
+        # # ---------- NEW: 박스 겹침 방지(겹치면 중심에 가까운 것만 남김) ----------
+        # # 축정렬 bbox 근사 IoU 사용. OpenCV는 파이썬에서 별도 IoU 유틸이 없어 직접 구현 권장. :contentReference[oaicite:1]{index=1}
+        # candidates = list(by_color.values())
+        # keep = []
+        # iou_thr = 0.25  # 필요 시 조절
+        # for i, c in enumerate(candidates):
+        #     bb = _bbox_from_poly(c["box"])
+        #     drop = False
+        #     for k in keep:
+        #         bb_k = _bbox_from_poly(k["box"])
+        #         if _iou(bb, bb_k) > iou_thr:
+        #             # 둘 중 픽존 중심(C.PICK_CX,C.PICK_CY)과 더 가까운 것만 유지
+        #             if c["dist2"] >= k["dist2"]:
+        #                 drop = True
+        #                 break
+        #             else:
+        #                 keep.remove(k)
+        #                 break
+        #     if not drop:
+        #         keep.append(c)
+
+        # # ---------- 기존 selected(1개) 대신 keep(최대 3개 색상) ----------
+        # # 좌표/각도 계산은 "가장 중심에 가까운 1개"로 진행
+        # selected = min(keep, key=lambda d: d["dist2"])
+
+        # # ====== 시각화: 색상 사각형(겹침 제거된 것만) ======
+        # for c in keep:
+        #     box = c["box"]
+        #     color_name = c["color"]
+        #     draw_color = tuple(C.COLOR_BRG_DRAW[color_name])
+        #     cv2.drawContours(overlay, [box], 0, draw_color, 2)
+        #     cx, cy = c["center"]
+        #     cv2.circle(overlay, (cx, cy), 6, draw_color, -1)
+        #     # 각 색상 라벨(사각형 위) - 텍스트만
+        #     cv2.putText(overlay, color_name.upper(), (max(0, box[:,0].min()), max(15, box[:,1].min()-6)),
+        #                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, draw_color, 2)
+
+        # # ====== 좌표/자세 산출은 selected로 ======
+        # box = selected["box"]
+        # cx, cy = selected["center"]
+        # dx_pix = cx - C.PICK_CX
+        # dy_pix = cy - C.PICK_CY
+        # dx_mm = dx_pix * C.SCALE_X_MM_PER_PX
+        # dy_mm = dy_pix * C.SCALE_Y_MM_PER_PX
+        # x_t = C.ANCHOR_PY[0] - dx_mm + C.CAMERAX_MM
+        # y_t = C.ANCHOR_PY[1] + dy_mm + C.CAMERAY_MM
+
+        # angle_here = selected["angle_img"]
+        # self.angles_buf.append(angle_here)
+        # rz_t = None
+        # if len(self.angles_buf) >= 3:
+        #     mean_angle = circ_mean_deg(list(self.angles_buf))
+        #     rz_t = norm180(-mean_angle + C.CAL_RZ_OFFSET)
+
+            # ✅ 1️⃣ 위치 정보 퍼블리시
+            color_map = {"red": 1.0, "blue": 2.0, "green": 3.0}
+            msg = Float32MultiArray()
+            msg.data = [float(x_t), float(y_t), float(rz_t if rz_t else 0.0),
+                        color_map.get(color, 0.0), -1.0]
+            self.pub_result.publish(msg)
+
+            # ✅ 2️⃣ YOLO 분류 모드: 텍스트만 표시
+            if self.mode == "detect_and_classify":
+                state = self.classify_frame(frame)
+                msg_state = Int32()
+                msg_state.data = state
+                self.pub_classify.publish(msg_state)
+
+                state_txt = "ANOMALY" if state == 1 else ("NORMAL" if state == 0 else "UNKNOWN")
+                # 화면 우상단 텍스트만 (네 요청대로 박스는 그리지 않음)
+                cv2.putText(output, f"STATE: {state_txt}", (self.W - 220, 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8,
+                            (0, 200, 255) if state == 1 else (0, 220, 0) if state == 0 else (200, 200, 200),
+                            2)
+
+        # 디버그 출력
+        # cv2.putText(
+        #     overlay,
+        #     f"x={x_t:.1f}, y={y_t:.1f}, rz={(rz_t if rz_t else 0.0):.1f}, color={selected['color']}",
+        #     (10, 30),
+        #     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2
+        # )
+        # cv2.imshow("Detector", overlay)
+        cv2.waitKey(1)
 
     def destroy_node(self):
         self.cap.release()

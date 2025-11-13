@@ -195,7 +195,7 @@ class DetectorNode(Node):
         color_map = {"red": 1.0, "blue": 2.0, "green": 3.0}
         msg = Float32MultiArray()
         msg.data = [float(x_t), float(y_t), float(rz_t if rz_t else 0.0),
-                    color_map.get(color_name, 0.0)]
+                    color_map.get(color_name, 0.0), -1.0]
         self.pub_result.publish(msg)
 
         # ✅ 2️⃣ YOLO 분류 모드

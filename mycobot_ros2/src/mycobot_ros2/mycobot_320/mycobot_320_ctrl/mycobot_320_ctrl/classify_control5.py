@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import time
-import threading, queue
 import traceback
 from typing import Optional, List, Union
 
@@ -10,14 +9,15 @@ import rclpy
 from rclpy.node import Node
 from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
-from std_msgs.msg import Float32MultiArray, Int32
+from std_msgs.msg import Float32MultiArray
 from mycobot_interfaces.srv import SetAngles, SetCoords, GripperStatus, GetCoords, GetAngles
 
 # === 네 환경에 맞게 경로 수정 ===
 from mycobot_320_ctrl.src.config_loader import load_config            # ../config.json 로드
 from mycobot_320_ctrl.src.ros_robot import ROS_Robot                   # ROS_Robot 클래스
+import threading, queue
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
 COORD_LIMITS = {
     'x':  (-350, 350),
@@ -32,35 +32,26 @@ DEFAULT_SPEED = 30
 DEFAULT_MODEL = 0  # 드라이버 기본(참고용)
 
 def map_color(code: float) -> Optional[str]:
-    # 0=red, 1=blue, 2=green  (detector.py의 color_map과 호환 주의!)
+    # 0=red, 1=blue, 2=green
     iv = int(round(code))
-    return {1: 'red', 2: 'blue', 3: 'green', 0: None}.get(iv, None)
+    return {0: 'red', 1: 'blue', 2: 'green'}.get(iv, None)
 
 def map_detected(code: float) -> Optional[str]:
-    # 0=normal, 1=anomaly, 그 외 None
+    # 0=normal, 1=anomaly
     iv = int(round(code))
     return {0: 'normal', 1: 'anomaly'}.get(iv, None)
 
 class ClassifyControl(Node):
     """
     /detector_result(Float32MultiArray): [x_t, y_t, rz_t, color_code, detected_code]
-    /classify_result(Int32): 0=normal, 1=anomaly, -1/기타=unknown
     → ROS_Robot(...)로 plan 생성 → /set_angles /set_coords /set_gripper 순차 실행
     """
 
     def __init__(self):
         super().__init__('classify_control')
 
-        # --- 파라미터 설정 ---
-        self.declare_parameter('detect_mode', 'detect_only')
-        self._detect_mode = self.get_parameter('detect_mode').get_parameter_value().string_value
-        
-        # QoS: 퍼블리셔와 동일하게 최대한 간결하게(깊이 1, RELIABLE)
-        qos = QoSProfile(
-            history=HistoryPolicy.KEEP_LAST,
-            depth=1,
-            reliability=ReliabilityPolicy.RELIABLE
-        )
+        qos = QoSProfile(history=HistoryPolicy.KEEP_LAST, depth=1,
+                         reliability=ReliabilityPolicy.RELIABLE)  # 기본: KeepLast(10)인데 1로 축소. :contentReference[oaicite:3]{index=3}
 
         # --- 서비스 클라이언트 ---
         self.cli_angles  = self.create_client(SetAngles,  '/set_angles')
@@ -69,16 +60,14 @@ class ClassifyControl(Node):
         self.cli_get_c   = self.create_client(GetCoords,  '/get_coords')
         self.cli_get_a   = self.create_client(GetAngles,  '/get_angles')
 
-        # 워커(서비스 호출 전담) 큐/스레드
         self._q = queue.Queue()
         self._stop = False
-        self._busy = False                   # 실행 중이면 True
-        self._mtx = threading.Lock()         # 분류 결과/입력 상태 보호용
+        self._busy = False                  # 👉 실행 중 플래그
+        self.classify_result = -1
 
         self._worker = threading.Thread(target=self._worker_loop, daemon=True)
         self._worker.start()
 
-        # 서비스 준비 대기
         for cli, name in [(self.cli_angles,'/set_angles'),
                           (self.cli_coords,'/set_coords'),
                           (self.cli_gripper,'/set_gripper'),
@@ -87,15 +76,9 @@ class ClassifyControl(Node):
             while not cli.wait_for_service(timeout_sec=1.0):
                 self.get_logger().info(f'⏳ waiting for {name} ...')
 
-        # --- 구독 등록 ---
-        # 1) 검출 결과: [x_t, y_t, rz_t, color_code, detected_code]
-        self.sub_det = self.create_subscription(
+        # --- 단일 구독: [x_t, y_t, rz_t, color_code, detected_code] ---
+        self.sub = self.create_subscription(
             Float32MultiArray, '/detector_result', self._cb_input, qos
-        )
-        # 2) YOLO 분류 결과: Int32 (0 normal, 1 anomaly, 그 외 unknown)
-        self.classify_result: int = -1  # 최신 값을 캐시
-        self.sub_cls = self.create_subscription(
-            Int32, '/classify_result', self._cb_classify, qos
         )
 
         # 최신 입력
@@ -104,6 +87,8 @@ class ClassifyControl(Node):
         self._rz_t: Optional[float] = None
         self._color: Optional[str] = None
         self._detected_type: Optional[str] = None
+        self.plan = []
+        self._call_angles(list(map(float, [0, 0, -80, -0, 90, -90])))
 
         # 설정 로드
         try:
@@ -112,46 +97,29 @@ class ClassifyControl(Node):
             self.get_logger().warn("load_config('../config.json') 실패 → 'config.json' 재시도")
             self.C = load_config("config.json")
 
-        self.get_logger().info("ClassifyControl ready. Waiting /detector_result & /classify_result ...")
+        self.get_logger().info("ClassifyControl ready. Waiting /detector_result ...")
 
-        # (옵션) 초기 앵커 자세로 이동
-        self._call_angles([0.0, 0.0, -80.0, 0.0, 90.0, -90.0])
-
-    # ========== Subscribers ==========
-    def _cb_classify(self, msg: Int32):
-        # 최신 분류 상태 업데이트(0=normal, 1=anomaly, else unknown)
-        with self._mtx:
-            self.classify_result = int(msg.data)
-
+    # ========== Subscriber ==========
     def _cb_input(self, msg: Float32MultiArray):
         try:
-            # 실행 중이면 드롭(“실행 중 보냈을 때 2번 동작” 방지)
+            # 👉 실행 중엔 즉시 드랍 (“실행중에 보내면 2번 작동” 방지)
             if self._busy:
+                # self.get_logger().warn("busy: drop incoming /detector_result")
                 return
 
             data = list(msg.data)
+            data.append(self.classify_result)
             if len(data) < 5:
                 self.get_logger().warn(f"/detector_result length<5: {data}")
                 return
 
             x_t, y_t, rz_t, color_code, detected_code = map(float, data[:5])
-            # 최신 YOLO 분류값을 가져와서 필요시 덮어쓰기
-            with self._mtx:
-                cls_val = self.classify_result
-
-            # detector_result의 detected_code가 -1(unknown) 이거나
-            # 항상 YOLO 분류를 우선하고 싶다면 아래처럼 교체:
-            if int(round(detected_code)) not in (0, 1) and cls_val in (0, 1):
-                detected_code = float(cls_val)
-
-            # 상태 저장
             self._x_t, self._y_t, self._rz_t = x_t, y_t, rz_t
             self._color = map_color(color_code)
             self._detected_type = map_detected(detected_code)
 
             self.get_logger().info(
-                f"in: x={x_t:.2f}, y={y_t:.2f}, rz={rz_t:.2f}, "
-                f"color={self._color}, type={self._detected_type}, cls={cls_val}"
+                f"in: x={x_t:.2f}, y={y_t:.2f}, rz={rz_t:.2f}, color={self._color}, type={self._detected_type}"
             )
             self._try_run_once()
 
@@ -165,10 +133,15 @@ class ClassifyControl(Node):
                 self._rz_t is not None and
                 (self._color is not None or self._detected_type is not None))
 
+    def _select_mode(self) -> int:
+        # 색상 코드가 유효하면 color 기반(mode=1), 아니면 YOLO 기반(mode=0)
+        return 1 if self._color is not None else 0
+
     def _try_run_once(self):
         if not self._ready():
             return
-        # 이미 실행 중이거나 큐에 작업 있으면 드랍(필요 시 정책 조정)
+
+        # 👉 이미 실행 중이거나 큐에 작업이 있으면 드랍(필요 시 정책 조정)
         if self._busy:
             self.get_logger().warn("enqueue skipped: busy")
             return
@@ -178,7 +151,7 @@ class ClassifyControl(Node):
 
         self.get_logger().info("🔶 Inputs ready. Building plan via ROS_Robot...")
         try:
-            mode = self._detect_mode # 설정한 detect_mode 값 입력
+            mode = 1  # 또는 self._select_mode()
             bot = ROS_Robot(mode, self.C, self._x_t, self._y_t, self._rz_t,
                             self._color, self._detected_type)
             plan = bot.main_fow() or []
@@ -186,19 +159,20 @@ class ClassifyControl(Node):
                 self.get_logger().warn("빈 plan 생성 → 실행 생략")
                 return
 
-            # 실행은 워커에게 맡김
-            self._busy = True
+            # ✅ 실행은 워커에게 맡기기: enqueue + busy ON
+            self._busy = True                   # 👉 여기서 Busy ON
             self._q.put(plan)
             self.get_logger().info(f"▶ plan enqueued (len={len(plan)})")
         except Exception:
             self.get_logger().error("build plan error:\n" + traceback.format_exc())
 
-    # ========== Service call helpers ==========
+    # ========== Call wrappers ==========
     def _spin_until(self, future, timeout_sec=15.0) -> bool:
-        # 워커 스레드: spin() 사용 금지 → 폴링으로 완료만 확인
+        # 👉 워커 스레드에서 spin 호출 금지. future.done() 폴링만.
+        import time
         deadline = time.time() + timeout_sec
         while rclpy.ok() and not future.done():
-            time.sleep(0.05)
+            time.sleep(0.05)   # executor는 메인 스레드가 돌림. 여기선 '기다리기'만!
             if time.time() > deadline:
                 return False
         return future.result() is not None
@@ -239,8 +213,14 @@ class ClassifyControl(Node):
         ok = self._spin_until(fut, timeout_sec=10.0)
         return bool(ok and getattr(fut.result(), 'flag', False))
 
-    # ========== Plan runner & worker ==========
+    # ========== Plan runner ==========
     def _run_plan(self, plan: List[List]) -> bool:
+        """
+        plan 형식(ROS_Robot 결과 그대로):
+          ['angles', [a1..a6]]  or
+          ['coords', [x,y,z,rx,ry,rz]]  or
+          ['gripper', True/False]
+        """
         for idx, item in enumerate(plan, start=1):
             if (not isinstance(item, (list, tuple))) or len(item) != 2:
                 self.get_logger().error(f"[step {idx}] invalid item: {item}")
@@ -292,8 +272,7 @@ class ClassifyControl(Node):
             except Exception as e:
                 self.get_logger().error(f"worker exception: {e}")
             finally:
-                # 실행 종료 → 새 입력 허용
-                self._busy = False
+                self._busy = False            # 👉 실행 끝: Busy OFF
                 self._q.task_done()
 
 def main(args=None):

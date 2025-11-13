@@ -2,12 +2,13 @@
     "PORT": "/dev/ttyACM0",
     "BAUD": 115200,
     "CAM_INDEX": 0,
-    "MODEL_PATH_DIR": "data/best.pt",
-    "YAML_PATH_DIR": "data/custom_data.yaml",
+    "MODEL_PATH_DIR": "~/MyCobot_Project/mycobot_ros2/src/mycobot_ros2/mycobot_320/mycobot_320_vision/data/best.pt",
+    "YAML_PATH_DIR": "~/MyCobot_Project/mycobot_ros2/src/mycobot_ros2/mycobot_320/mycobot_320_vision/data/custom_data.yaml",
     "PICK_ZONE_REL_W": 0.40,
-    "PICK_ZONE_REL_H": 0.50,
-    "PICK_CX": 320,
+    "PICK_ZONE_REL_H": 0.55,
+    "PICK_CX": 420,
     "PICK_CY": 240,
+
     "PICK_ZONE_COLOR": [
         255,
         0,
@@ -16,17 +17,19 @@
     "PICK_ZONE_THICK": 2,
     "FILTER_MASK_TO_ZONE": true,
     "ANCHOR_PY": [
-        192.0,
-        0.0,
-        300.0,
+        220,
+        -145,
+        243.0,
         -180.0,
         0.0,
         0.0
     ],
-    "SCALE_X_MM_PER_PX": 0.35,
-    "SCALE_Y_MM_PER_PX": 0.42,
-    "CAMERA_MM": -85,
-    "CAL_RZ_OFFSET": 0.0,
+    "SCALE_X_MM_PER_PX": 0.4,
+    "SCALE_Y_MM_PER_PX": 0.38,
+    "CAMERAX_MM": 0,
+    "CAMERAY_MM": -20,
+    "APPROACH_Z": 243,
+    "CAL_RZ_OFFSET": 0.1,
     "APPLY_RZ": true,
     "MODE": 0,
     "VISION_RESULT": [
@@ -91,7 +94,22 @@
                     255
                 ]
             ]
+        ],
+        "white": [
+            [
+                [
+                    0,
+                    0,
+                    160
+                ],
+                [
+                    180,
+                    30,
+                    255
+                ]
+            ]
         ]
+
     },
     "COLOR_BRG_DRAW": {
         "red": [
@@ -108,13 +126,18 @@
             0,
             255,
             0
+        ],
+        "white": [
+            0,
+            0,
+            0
         ]
     },
     "WAIT_SEC": 3.0,
     "ANGLE_WINDOW": 15,
     "MOVE_SPEED": 30,
-    "APPROACH_Z": 243,
-    "GRIPPER_OPEN_VAL": 150,
+
+    "GRIPPER_OPEN_VAL": 60,
     "GRIPPER_CLOSE_VAL": 10,
     "GRIPPER_SPEED": 20
 }

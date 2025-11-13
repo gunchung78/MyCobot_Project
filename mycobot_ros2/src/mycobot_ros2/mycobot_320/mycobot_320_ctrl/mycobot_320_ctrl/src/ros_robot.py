@@ -136,10 +136,10 @@ class ROS_Robot:
         self.placeList=[0,0,0]
 
         try:
-            if self.mode == 1 and (self.color == "white" or self.color is None ):
+            if self.mode == "detect_only" and (self.color == "white" or self.color is None ):
                 print(f'no color {self.color}')
                 self.refresh_home()
-            elif self.mode == 0 and (self.detected_type ==  "unknown" or self.detected_type is None): 
+            elif self.mode == "detect_and_classify" and (self.detected_type ==  "unknown" or self.detected_type is None): 
                 print(f'no detected_type {self.detected_type}')
                 self.refresh_home()
 
@@ -163,7 +163,7 @@ class ROS_Robot:
 
                 # [변경된 분류 로직]
                 # 색상 + YOLO 결과 모두 고려
-                if self.mode == 1:
+                if self.mode == "detect_only":
                     if self.color == "red":
                         print("[ACTION] red 감지")
                         self.place_box("red", self.placeList[0])
@@ -176,7 +176,7 @@ class ROS_Robot:
                         print("[ACTION] blue 감지")
                         self.place_box("blue", self.placeList[1])
                         self.placeList[1] += 1
-                elif self.mode == 0: 
+                elif self.mode == "detect_and_classify": 
                     # 추가로 YOLO 결과에 따라 색상 불분명시 대체 동작 수행
                     if self.detected_type == "anomaly":
                         print("[ACTION] YOLO anomaly 판정")

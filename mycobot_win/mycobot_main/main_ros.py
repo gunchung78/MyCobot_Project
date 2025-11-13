@@ -14,14 +14,14 @@ import argparse
 def main():
     # ---- 인자 설정 ----
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mode", type=int, default=0)
+    ap.add_argument("--mode", type=str, default="detect_and_classify")
     args = ap.parse_args()
     
     # ---- 설정 로드 ----
     C = load_config("config.json")
 
     # ---- YOLO 로드 ----
-    if args.mode == 0: 
+    if args.mode == "detect_and_classify": 
         vision = VisionModule(C)
 
     # ---- 카메라 준비 ----
@@ -60,7 +60,7 @@ def main():
                 break
                 
             # ---- YOLO normal or anomaly ----
-            if args.mode == 0:
+            if args.mode == "detect_and_classify":
                 detected_type, class_name = vision.detect(frame)
                 if(class_name is not None):
                     print(f"[YOLO] Detected: {class_name} ({detected_type})")
