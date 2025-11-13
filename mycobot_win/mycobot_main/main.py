@@ -142,7 +142,15 @@ def main():
                         if present and norm(pz_color) == norm(color):
                             print("[ABORT] 물체 존재 → 홈으로 복귀"); 
                             r.refresh_home()
-                            r.gripper_open() 
+                            r.gripper_open()
+
+                            # 카메라 시야 안정화 (필수)
+                            time.sleep(3)   
+                            for _ in range(8):
+                                pz.cap.grab()
+                                frame.cap.grab()
+                            continue
+
                         else:
                             # [변경된 분류 로직]
                             # 색상 + YOLO 결과 모두 고려

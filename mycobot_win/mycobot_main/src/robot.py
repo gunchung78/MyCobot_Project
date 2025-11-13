@@ -128,30 +128,30 @@ class Robot:
         - val: 'green'/'normal', 'blue', 'red'/'anomaly'
         - idx: 적재 층(0,1,2,...) → z 오프셋
         """
-        z = idx * 25
+        z = 0
         try:
             if val in ('green', 'normal'):
-                z = z + 148
+                z = 148 + (idx * 25)
                 # 접근 자세(관절)
                 self.move_and_wait("angles", [-10, 0, 78.95, -21, -87.36, -15])
                 # 드롭 좌표(툴 좌표)
-                self.move_and_wait("coords", [-293.5, -25, z, -176, 0, 90], speed=10, delay=1.0)
+                self.move_and_wait("coords", [-293.5, -25, z, -176, 0, 90], speed=15, delay=2.0)
                 # 놓기
                 self.mc.set_gripper_value(40, 20, 1)
                 # 이탈 자세
                 self.move_and_wait("angles", [-22.23, 0, 78.95, -21, -87.36, -15]) 
 
             elif val == 'blue':
-                z = z + 170
-                self.move_and_wait("angles", [12.12, 0, 70.83, -16.08, -67.5, -150])
-                self.move_and_wait("coords", [-219.2, -281.9, z, 179.41, -5, -100], speed=10, delay=1.0)
+                z = 165 + (idx * 28)
+                self.move_and_wait("angles", [30, 0, 70.83, -16.08, -90, -150])
+                self.move_and_wait("coords", [-219.2, -281.9, z, 179.41, -5, -100], speed=15, delay=2.0)
                 self.mc.set_gripper_value(40, 20, 1)
-                self.move_and_wait("angles", [12.12, 0, 70.83, -16.08, -67.5, -150])
+                self.move_and_wait("angles", [30, 0, 70.83, -16.08, -90, -150])
 
             elif val in ('red'):
-                z = z + 160
+                z = 160 + (idx * 22)
                 self.move_and_wait("angles", [136.66, 0, -55.98, 0, 109.51, -30])
-                self.move_and_wait("coords", [-180, 240, z, -173.15, 0, 90], speed=10, delay=1.0)
+                self.move_and_wait("coords", [-180, 240, z, -173.15, 0, 90], speed=15, delay=2.0)
                 self.mc.set_gripper_value(40, 20, 1)
                 self.move_and_wait("angles", [136.66, 0, -55.98, 0, 109.51, -30])
 
