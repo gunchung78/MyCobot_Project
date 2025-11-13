@@ -225,7 +225,7 @@ class ClassifyControl(Node):
         ok = self._spin_until(fut, timeout_sec=25.0)
         return bool(ok and getattr(fut.result(), 'flag', False))
 
-    def _call_coords(self, coords, speed=DEFAULT_SPEED, model=DEFAULT_MODEL) -> bool:
+    def _call_coords(self, coords, speed=DEFAULT_SPEED, model=15) -> bool:
         if not self._check_coords_limits(coords):
             return False
         req = SetCoords.Request()
@@ -237,6 +237,7 @@ class ClassifyControl(Node):
         return bool(ok and getattr(fut.result(), 'flag', False))
 
     def _call_gripper(self, status: bool) -> bool:
+        time.sleep(1)
         req = GripperStatus.Request()
         req.status = bool(status)  # True=open, False=close
         fut = self.cli_gripper.call_async(req)
