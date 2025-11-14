@@ -60,7 +60,7 @@ class ROS_Robot:
                 self.move_and_wait("angles", [-10, 0, 78.95, -21, -87.36, -15])
 
             elif val == 'blue':
-                z = 158 + (idx * 25)
+                z = 158 + (idx * 23)
                 self.move_and_wait("angles", [30, 0, 70.83, -16.08, -90, -150])
                 self.move_and_wait("coords", [-219.2, -281.9, z, 179.41, -5, -100], speed=10, delay=1.0)
                 self.gripper_open()

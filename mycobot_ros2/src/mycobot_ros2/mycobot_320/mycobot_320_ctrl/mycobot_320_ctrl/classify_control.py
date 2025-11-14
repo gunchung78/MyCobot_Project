@@ -26,8 +26,8 @@ COORD_LIMITS = {
     'ry': (-180, 180),
     'rz': (-180, 180),
 }
-ANGLES_SPEED = 30
-COORDS_SPEED = 15
+ANGLES_SPEED = 47
+COORDS_SPEED = 30
 GRIPPER_TIME = 1.5
 DEFAULT_MODEL = 0
 
@@ -118,6 +118,7 @@ class ClassifyControl(Node):
         # --- 로봇 설정 ---
         self._bot = ROS_Robot(self._detect_mode, self.C)
         self._call_angles([0.0, 0.0, -80.0, 0.0, 90.0, -90.0])
+        self._call_gripper(True)
         
 
     # ========== Subscribers ==========
