@@ -133,7 +133,7 @@
             0
         ]
     },
-    "WAIT_SEC": 3.0,
+    "WAIT_SEC": 2.0,
     "ANGLE_WINDOW": 15,
     "MOVE_SPEED": 30,
 
