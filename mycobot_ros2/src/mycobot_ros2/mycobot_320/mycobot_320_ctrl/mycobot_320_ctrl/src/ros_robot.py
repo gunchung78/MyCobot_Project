@@ -134,13 +134,13 @@ class ROS_Robot:
             if self.mode == "detect_only":
                 if color == "red":
                     self.place_box("red", self.placeList[0]);   self.placeList[0] += 1
-                    if(self.placeList[0] <= 3): self.placeList[0] = 0
+                    if(self.placeList[0] >= 3): self.placeList[0] = 0
                 elif color == "green":
                     self.place_box("green", self.placeList[2]); self.placeList[2] += 1
-                    if(self.placeList[2] <= 3): self.placeList[2] = 0
+                    if(self.placeList[2] >= 3): self.placeList[2] = 0
                 elif color == "blue":
                     self.place_box("blue", self.placeList[1]);  self.placeList[1] += 1
-                    if(self.placeList[1] <= 3): self.placeList[1] = 0
+                    if(self.placeList[1] >= 3): self.placeList[1] = 0
 
             elif self.mode == "detect_and_classify":
                 if detected_type == "anomaly":
