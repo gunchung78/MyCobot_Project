@@ -50,24 +50,24 @@ class ROS_Robot:
 
     def place_box(self, val: str, idx: int = 0):
         """분류값에 따른 드롭존 이동 및 배치 플랜 적재"""
-        z = idx * 25
+        z = 0
         try:
             if val in ('green', 'normal'):
-                z += 148
+                z = 145 + (idx * 22)
                 self.move_and_wait("angles", [-10, 0, 78.95, -21, -87.36, -15])
                 self.move_and_wait("coords", [-293.5, -25, z, -176, 0, 90], speed=10, delay=1.0)
                 self.gripper_open()
                 self.move_and_wait("angles", [-10, 0, 78.95, -21, -87.36, -15])
 
             elif val == 'blue':
-                z += 170
-                self.move_and_wait("angles", [12.12, 0, 70.83, -16.08, -67.5, -150])
+                z = 158 + (idx * 25)
+                self.move_and_wait("angles", [30, 0, 70.83, -16.08, -90, -150])
                 self.move_and_wait("coords", [-219.2, -281.9, z, 179.41, -5, -100], speed=10, delay=1.0)
                 self.gripper_open()
-                self.move_and_wait("angles", [12.12, 0, 70.83, -16.08, -67.5, -150])
+                self.move_and_wait("angles", [30, 0, 70.83, -16.08, -90, -150])
 
             elif val == 'red':
-                z += 160
+                z = 152 + (idx * 22)
                 self.move_and_wait("angles", [136.66, 0, -55.98, 0, 109.51, -30])
                 self.move_and_wait("coords", [-180, 240, z, -173.15, 0, 90], speed=10, delay=1.0)
                 self.gripper_open()
