@@ -17,6 +17,7 @@ from mycobot_interfaces.srv import SetAngles, SetCoords, GripperStatus, GetCoord
 from mycobot_320_ctrl.src.config_loader import load_config           
 from mycobot_320_ctrl.src.ros_robot import ROS_Robot                  
 
+# 제어 파라미터 설정
 COORD_LIMITS = {
     'x':  (-350, 350),
     'y':  (-350, 350),
@@ -25,8 +26,9 @@ COORD_LIMITS = {
     'ry': (-180, 180),
     'rz': (-180, 180),
 }
-
-DEFAULT_SPEED = 30
+ANGLES_SPEED = 30
+COORDS_SPEED = 15
+GRIPPER_TIME = 1.5
 DEFAULT_MODEL = 0
 
 def map_color(code: float) -> Optional[str]:
@@ -216,7 +218,7 @@ class ClassifyControl(Node):
                 return False
         return True
 
-    def _call_angles(self, angles, speed=DEFAULT_SPEED) -> bool:
+    def _call_angles(self, angles, speed=ANGLES_SPEED) -> bool:
         req = SetAngles.Request()
         (req.joint_1, req.joint_2, req.joint_3,
          req.joint_4, req.joint_5, req.joint_6) = angles
@@ -225,7 +227,7 @@ class ClassifyControl(Node):
         ok = self._spin_until(fut, timeout_sec=25.0)
         return bool(ok and getattr(fut.result(), 'flag', False))
 
-    def _call_coords(self, coords, speed=DEFAULT_SPEED, model=15) -> bool:
+    def _call_coords(self, coords, speed=COORDS_SPEED, model=DEFAULT_MODEL) -> bool:
         if not self._check_coords_limits(coords):
             return False
         req = SetCoords.Request()
@@ -237,7 +239,7 @@ class ClassifyControl(Node):
         return bool(ok and getattr(fut.result(), 'flag', False))
 
     def _call_gripper(self, status: bool) -> bool:
-        time.sleep(1)
+        time.sleep(GRIPPER_TIME) 
         req = GripperStatus.Request()
         req.status = bool(status)  # True=open, False=close
         fut = self.cli_gripper.call_async(req)
