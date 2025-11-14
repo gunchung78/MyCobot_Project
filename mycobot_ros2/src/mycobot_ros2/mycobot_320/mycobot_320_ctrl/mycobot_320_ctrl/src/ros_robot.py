@@ -53,21 +53,21 @@ class ROS_Robot:
         z = 0
         try:
             if val in ('green', 'normal'):
-                z = 145 + (idx * 22)
+                z = 145 + (idx * 24)
                 self.move_and_wait("angles", [-10, 0, 78.95, -21, -87.36, -15])
                 self.move_and_wait("coords", [-293.5, -25, z, -176, 0, 90], speed=10, delay=1.0)
                 self.gripper_open()
                 self.move_and_wait("angles", [-10, 0, 78.95, -21, -87.36, -15])
 
             elif val == 'blue':
-                z = 158 + (idx * 23)
+                z = 155 + (idx * 25)
                 self.move_and_wait("angles", [30, 0, 70.83, -16.08, -90, -150])
                 self.move_and_wait("coords", [-219.2, -281.9, z, 179.41, -5, -100], speed=10, delay=1.0)
                 self.gripper_open()
                 self.move_and_wait("angles", [30, 0, 70.83, -16.08, -90, -150])
 
             elif val == 'red':
-                z = 152 + (idx * 22)
+                z = 153 + (idx * 24)
                 self.move_and_wait("angles", [136.66, 0, -55.98, 0, 109.51, -30])
                 self.move_and_wait("coords", [-180, 240, z, -173.15, 0, 90], speed=10, delay=1.0)
                 self.gripper_open()
@@ -147,7 +147,7 @@ class ROS_Robot:
                     self.place_box("anomaly")
                 elif detected_type == "normal":
                     self.place_box("normal", self.placeList[2]); self.placeList[2] += 1
-                    if(self.placeList[2] <= 3): self.placeList[2] = 0
+                    if(self.placeList[2] >= 3): self.placeList[2] = 0
 
             return list(self.result)
 

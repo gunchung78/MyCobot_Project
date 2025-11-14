@@ -7,7 +7,7 @@
     "PICK_ZONE_REL_W": 0.40,
     "PICK_ZONE_REL_H": 0.45,
     "PICK_CX": 420,
-    "PICK_CY": 270,
+    "PICK_CY": 280,
 
     "PICK_ZONE_COLOR": [
         255,
@@ -27,9 +27,9 @@
     "SCALE_X_MM_PER_PX": 0.3,
     "SCALE_Y_MM_PER_PX": 0.3,
     "CAMERAX_MM": 0,
-    "CAMERAY_MM": -10,
+    "CAMERAY_MM": -5,
     "APPROACH_Z": 243,
-    "CAL_RZ_OFFSET": 0.1,
+    "CAL_RZ_OFFSET": 0.0,
     "APPLY_RZ": true,
     "MODE": 0,
     "VISION_RESULT": [
@@ -85,8 +85,8 @@
             [
                 [
                     35,
-                    100,
-                    125
+                    90,
+                    100
                 ],
                 [
                     85,

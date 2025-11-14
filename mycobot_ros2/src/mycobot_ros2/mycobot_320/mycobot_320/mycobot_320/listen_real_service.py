@@ -214,7 +214,7 @@ class MyCobotDriver(Node):
         try:
             speed = 80  # 고정
             if req.status:
-                self.mc.set_gripper_value(40, speed, 1)  # open
+                self.mc.set_gripper_value(60, speed, 1)  # open
             else:
                 self.mc.set_gripper_value(10, speed, 1)  # close
             res.flag = True
