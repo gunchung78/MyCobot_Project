@@ -225,7 +225,8 @@ class ClassifyControl(Node):
          req.joint_4, req.joint_5, req.joint_6) = angles
         req.speed = int(speed)
         fut = self.cli_angles.call_async(req)
-        ok = self._spin_until(fut, timeout_sec=25.0)
+        ok = self._spin_until(fut, timeout_sec=5.0)
+        self.get_logger().info(f"[angle : {ok}]")
         return bool(ok and getattr(fut.result(), 'flag', False))
 
     def _call_coords(self, coords, speed=COORDS_SPEED, model=DEFAULT_MODEL) -> bool:
@@ -236,7 +237,7 @@ class ClassifyControl(Node):
         req.speed = int(speed)
         req.model = int(model)
         fut = self.cli_coords.call_async(req)
-        ok = self._spin_until(fut, timeout_sec=30.0)
+        ok = self._spin_until(fut, timeout_sec=5.0)
         return bool(ok and getattr(fut.result(), 'flag', False))
 
     def _call_gripper(self, status: bool) -> bool:
@@ -244,7 +245,7 @@ class ClassifyControl(Node):
         req = GripperStatus.Request()
         req.status = bool(status)  # True=open, False=close
         fut = self.cli_gripper.call_async(req)
-        ok = self._spin_until(fut, timeout_sec=10.0)
+        ok = self._spin_until(fut, timeout_sec=5.0)
         return bool(ok and getattr(fut.result(), 'flag', False))
 
     # ========== Plan runner & worker ==========

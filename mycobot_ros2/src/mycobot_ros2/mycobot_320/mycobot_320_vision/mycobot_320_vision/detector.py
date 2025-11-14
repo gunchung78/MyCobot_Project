@@ -136,8 +136,6 @@ class DetectorNode(Node):
             msg = Float32MultiArray()
             msg.data = [x_t, y_t, rz_t, color_code, -1.0]  # detected_code는 -1 유지(설계 그대로)
             self.pub_result.publish(msg)
-            self.robot_action = False
-        self.has_target = False
 
         # 오버레이 화면 출력
         cv2.imshow("Frame", output)
