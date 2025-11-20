@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "=== [1/7] 시스템 패키지 업데이트 ==="
+echo "=== [1/6] 시스템 패키지 업데이트 ==="
 sudo apt update
 sudo apt install -y git curl
 
-echo "=== [2/7] 필수 패키지 설치 ==="
+echo "=== [2/6] 필수 패키지 설치 ==="
 sudo apt install -y \
   python3-argcomplete \
   ros-humble-xacro \
@@ -15,23 +15,15 @@ sudo apt install -y \
   ros-humble-moveit
 
 
-echo "=== [3/7] pymycobot 설치 (setuptools 업그레이드 안 함) ==="
+echo "=== [3/6] pymycobot 설치 (setuptools 업그레이드 안 함) ==="
 python3 -m pip install --user --upgrade pip wheel
 python3 -m pip install --user --no-cache-dir pymycobot
 
-echo "=== [4/7] 워크스페이스 생성 ==="
+echo "=== [4/6] 워크스페이스 생성 ==="
 WS="$HOME/MyCobot_Project/mycobot_ros2"
 mkdir -p "$WS/src"
 
-echo "=== [5/7] 소스 클론 ==="
-cd "$WS/src"
-if [ ! -d "mycobot_ros2" ]; then
-  git clone --depth 1 https://github.com/elephantrobotics/mycobot_ros2.git
-else
-  echo "이미 mycobot_ros2가 존재합니다. (원하면 git pull)"
-fi
-
-echo "=== [6/7] 빌드 ==="
+echo "=== [5/6] 빌드 ==="
 cd "$WS"
 set +e
 colcon build
@@ -42,7 +34,7 @@ if [ $RC -ne 0 ]; then
   colcon build
 fi
 
-echo "=== [7/7] 환경 설정(.bashrc 추가) ==="
+echo "=== [6/6] 환경 설정(.bashrc 추가) ==="
 # ROS2 → overlay 순서가 중요
 if ! grep -Fxq 'source /opt/ros/humble/setup.bash' "$HOME/.bashrc"; then
   echo 'source /opt/ros/humble/setup.bash' >> "$HOME/.bashrc"
